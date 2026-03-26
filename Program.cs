@@ -9,11 +9,13 @@ internal class Program
     public static bool correct_name;
 
     static string choice;
-
-    //Admin stuff
+    //Speciality
     static string specName;
     static string specCost;
 
+    //Admin stuff
+
+    //Doctor stuff
     static int empNumber;
     static string empNumber_string;
     static string doc_FullName;
@@ -21,22 +23,32 @@ internal class Program
     static int phoneNum;
     static string phoneNum_string;
 
-    //Doctor stuff
-    static string patName;
+    //Patient stuff
+    static string patName_F;
+    static string patName_L;
+    static string adress;
+    static string gender;
+    static string password;
+    static int medicalNumber;
+    static DateOnly birthday;
     static DateOnly date;
     static TimeOnly time;
+
+    //Medical_Records
+    static int recordNumber;
+    static TimeOnly recordsTime;
+    static DateOnly recordsDate;
     static string diagnosis;
     static string description;
-    static string prescription;
+    static string perscription;
 
-    //Patient stuff
-    
+
     public static void Main(string[] args)
     {
         Login();
         Console.ReadKey();
     }
-    public NpgsqlConnection GetUserConnection() // For patients and doctors
+    public static NpgsqlConnection GetUserConnection() // For patients and doctors
     {
         string connString = $"Host=postgres.mau.se;Username=ar7661;Password=mj8nrus2;Database=ar7661;Port=55432";
 
@@ -146,6 +158,9 @@ internal class Program
         }
     }
 
+    //SQL STUFF______________________________________________________________________________________________________________SQL STUFF________
+
+
     //ADMIN STUFF____________________________________________________________________________________________________________ADMIN STUFF______
     public static void AdminMain()
     {
@@ -238,11 +253,12 @@ internal class Program
         Console.WriteLine("1. Availability.");
         Console.WriteLine("2. Appointments.");
         Console.WriteLine("3. Patient information.");
-        Console.WriteLine("4. Add medical Record for patient.");
-        Console.WriteLine("5. Back to Login.");
+        Console.WriteLine("4. Add Patient."); //Done
+        Console.WriteLine("4. Add Medical record."); //Done
+        Console.WriteLine("6. Back to Login.");
 
         choice = Console.ReadLine();
-        if (choice == "5")
+        if (choice == "6")
         {
             Login();
         }
@@ -270,29 +286,94 @@ internal class Program
         else if (choice == "4")
         {
             Console.Clear();
-            Console.WriteLine("Write the name of the patient you wish to add a medical record for. ");
-            patName = Console.ReadLine();
+            Console.WriteLine("Write the first name of the patient you wish to add.");
+            patName_F = Console.ReadLine();
             Console.WriteLine(" ");
-            Console.WriteLine("Write the name of the Doctor assigned to patient. ");
-            doc_FullName = Console.ReadLine();
+            Console.WriteLine("Write the last name of the patient you wish to add.");
+            patName_L = Console.ReadLine();
             Console.WriteLine(" ");
-            Console.WriteLine("Write the Diagnosis for the patient.");
-            diagnosis = Console.ReadLine();
+            Console.WriteLine("Write the Gender of the patient.");
+            gender = Console.ReadLine();
             Console.WriteLine(" ");
-            Console.WriteLine("Write the Description for the patient.");
-            description = Console.ReadLine();
+            Console.WriteLine("Write the Adress of the patient.");
+            adress = Console.ReadLine();
             Console.WriteLine(" ");
-            Console.WriteLine("Write the prescription for the patient.");
-            prescription = Console.ReadLine();
+            Console.WriteLine("Write the Medical Number for the patient.");
+            medicalNumber = int.Parse(Console.ReadLine());
+            Console.WriteLine(" ");
+            Console.WriteLine("Write the birthday for the patient.");
+            birthday = DateOnly.Parse(Console.ReadLine());
             Console.WriteLine(" ");
             date = DateOnly.FromDateTime(DateTime.Now);
             time = TimeOnly.FromDateTime(DateTime.Now);
             Console.WriteLine("Patient has been created.");
-            Console.WriteLine("New patient: " + patName + ", Assigned doctor: " + doc_FullName + ", Diagnosis: " + diagnosis + ", Description: " + description + ", Prescription: " + prescription + ", Added on date: " + date + ", At time: " + time);
+            Console.WriteLine("New patient: " + patName_F + " " + patName_L + ", Gender: " + gender + ", Adress: " + adress + ", Medical Number: " + medicalNumber + ", Birthday: " + birthday + ", Phone number: " + phoneNum + ", Added on date: " + date + ", At time: " + time);
+            Console.WriteLine();
+
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+
+                string query = @"INSERT INTO Patient
+                (F_Name, L_Name, Gender, Adress, Password_, Registration_Date, Medical_Number, Birth_Date, Phone_Number)";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("F_Name", patName_F);
+                    cmd.Parameters.AddWithValue("L_Name", patName_L);
+                    cmd.Parameters.AddWithValue("Gender", gender);
+                    cmd.Parameters.AddWithValue("Adress", adress);
+                    cmd.Parameters.AddWithValue("Password_", password);
+                    cmd.Parameters.AddWithValue("Registration_Date", date);
+                    cmd.Parameters.AddWithValue("Medical_Number", medicalNumber);
+                    cmd.Parameters.AddWithValue("Birth_Date", birthday);
+                    cmd.Parameters.AddWithValue("Phone_Number", phoneNum);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
             Console.WriteLine(" ");
             Console.WriteLine("Press any button to continue.");
             Console.ReadLine();
             DoctorMain();
+        }
+        else if (choice == "5") 
+        {
+            Console.Clear();
+            Console.WriteLine("Add a medical record for your patient.");
+            Console.WriteLine("Write the patients medical number.");
+            recordNumber = int.Parse(Console.ReadLine());
+            Console.WriteLine("Write the patients booking date.");
+            recordsDate = DateOnly.Parse(Console.ReadLine());
+            Console.WriteLine("Write the patients booking time.");
+            recordsTime = TimeOnly.Parse(Console.ReadLine());
+            Console.WriteLine("Write the patients Diagnosis.");
+            diagnosis = Console.ReadLine();
+            Console.WriteLine("Write the diagnosis description.");
+            description = Console.ReadLine();
+            Console.WriteLine("Write the administered perscription.");
+            perscription = Console.ReadLine();
+            Console.WriteLine("Medical Record Created!");
+
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+
+                string query = @"INSERT INTO Medical_Records
+                (Record_Number, Booking_Time, Booking_Date, Diagnosis, Description, Perscription)";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("Record_Number", recordNumber);
+                    cmd.Parameters.AddWithValue("Booking_Time", recordsTime);
+                    cmd.Parameters.AddWithValue("Booking_Date", recordsDate);
+                    cmd.Parameters.AddWithValue("Diagnosis", diagnosis);
+                    cmd.Parameters.AddWithValue("Description", description);
+                    cmd.Parameters.AddWithValue("Perscription", perscription);
+
+                    cmd.ExecuteNonQuery();
+                }
+            }
         }
         else
         {
