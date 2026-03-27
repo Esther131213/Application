@@ -42,7 +42,6 @@ internal class Program
     string description;
     string perscription;
 
-
     public static void Main(string[] args)
     {
         Login();
@@ -206,9 +205,9 @@ internal class Program
             using (var conn = GetUserConnection())
             {
                 conn.Open();
-
+hkgb
                 string query = @"INSERT INTO Specialization
-                Spec_Id, Cost_, Spec_Name)
+                (Spec_Id, Cost_, Spec_Name)
                 VALUES (@Spec_Id, @Cost_, @Spec_Name)";
 
                 using (var cmd = new NpgsqlCommand(query, conn))
