@@ -47,11 +47,30 @@ internal class Program
         Login();
         Console.ReadKey();
     }
-    public static NpgsqlConnection GetUserConnection() // For patients and doctors
+    public static NpgsqlConnection GetUserConnection() 
     {
         string connString = $"Host=postgres.mau.se;Username=ar7661;Password=mj8nrus2;Database=ar7661;Port=55432";
 
         return new NpgsqlConnection(connString);
+    }
+
+    public static void ListSpecializations()
+    {
+        using (var conn = GetUserConnection())
+        {
+            conn.Open();
+            var cmd = new NpgsqlCommand("SELECT * FROM Specialization", conn);
+
+            using (var reader = cmd.ExecuteReader())
+            {
+                string result = "Specializations:\n";
+                while (reader.Read())
+                {
+                    result += $"ID: {reader["Spec_Id"]}, Name: {reader["Spec_Name"]}, Visit Cost: {reader["Cost_"]}\n";
+                }
+                Console.WriteLine(result);
+            }
+        }
     }
 
     static void Login()
@@ -170,7 +189,7 @@ internal class Program
         Console.WriteLine("2. Add a Doctor."); //Done
         Console.WriteLine("3. Delete a Doctor.");
         Console.WriteLine("4. Patient Information. (inc. upcoming appointments)");
-        Console.WriteLine("5. Back to Login.");
+        Console.WriteLine("5. Back to Login.");//Done
 
         choice = Console.ReadLine();
         if (choice == "5")
@@ -201,23 +220,38 @@ internal class Program
             }
             Console.WriteLine(" ");
             Console.WriteLine("You have added specialization: " + specName + ", with a visit cost of: " + specCost + ".");
-
+           
+            ListSpecializations();
+            /*
             using (var conn = GetUserConnection())
             {
                 conn.Open();
-hkgb
-                string query = @"INSERT INTO Specialization
-                (Spec_Id, Cost_, Spec_Name)
-                VALUES (@Spec_Id, @Cost_, @Spec_Name)";
+
+                string query = @"INSERT INTO specialization (spec_id, specname, cost)
+                     VALUES (@spec_id, @specname, @cost)";
+
+                Console.WriteLine(query);
 
                 using (var cmd = new NpgsqlCommand(query, conn))
                 {
-                    cmd.Parameters.AddWithValue("Spec_Id", spec_Id);
-                    cmd.Parameters.AddWithValue("Spec_Name", specName);
-                    cmd.Parameters.AddWithValue("Cost_", Cost);
-                    cmd.ExecuteNonQuery();
+                    cmd.Parameters.AddWithValue("@spec_id", specId);
+                    cmd.Parameters.AddWithValue("@specname", specName);
+                    cmd.Parameters.AddWithValue("@cost", Cost);
+
+                    try
+                    {
+                        cmd.ExecuteNonQuery();
+                        Console.WriteLine("Insert worked.");
+                    }
+                    catch (PostgresException ex)
+                    {
+                        Console.WriteLine("Message: " + ex.MessageText);
+                        Console.WriteLine("Position: " + ex.Position);
+                        Console.WriteLine("SqlState: " + ex.SqlState);
+                    }
                 }
             }
+            */
 
             Console.WriteLine(" ");
             Console.WriteLine("Press any key to return to Admin menu.");
@@ -262,10 +296,10 @@ hkgb
 
                 using (var cmd = new NpgsqlCommand(query, conn))
                 {
-                    cmd.Parameters.AddWithValue("Spec_Id", spec_Id);
                     cmd.Parameters.AddWithValue("Password_", password);
+                    cmd.Parameters.AddWithValue("Doctor_Id", empNum);
                     cmd.Parameters.AddWithValue("Name_", doc_FullName);
-                    cmd.Parameters.AddWithValue("Doctor_Id",empNum);
+                    cmd.Parameters.AddWithValue("Spec_Id", spec_Id);
                     cmd.ExecuteNonQuery();
                 }
             }
