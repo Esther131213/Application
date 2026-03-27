@@ -12,16 +12,15 @@ internal class Program
     //Speciality
     static string specName;
     static string specCost;
+    static int specId;
 
     //Admin stuff
 
     //Doctor stuff
     static int empNumber;
-    static string empNumber_string;
     static string doc_FullName;
     static string specialization_doc;
     static int phoneNum;
-    static string phoneNum_string;
 
     //Patient stuff
     static string patName_F;
@@ -167,8 +166,8 @@ internal class Program
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
         Console.WriteLine(" ");
-        Console.WriteLine("1. Add a specialization.");
-        Console.WriteLine("2. Add a Doctor.");
+        Console.WriteLine("1. Add a specialization."); //Done
+        Console.WriteLine("2. Add a Doctor."); //Done
         Console.WriteLine("3. Delete a Doctor.");
         Console.WriteLine("4. Patient Information. (inc. upcoming appointments)");
         Console.WriteLine("5. Back to Login.");
@@ -188,7 +187,27 @@ internal class Program
             Console.WriteLine("Please state the visit cost.");
             specCost = Console.ReadLine();
             Console.WriteLine(" ");
+            Console.WriteLine("Please state the specialization ID.");
+            specId = int.Parse(Console.ReadLine());
+            Console.WriteLine(" ");
             Console.WriteLine("You have added specialization: " + specName + ", with a visit cost of: " + specCost + ".");
+
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+
+                string query = @"INSERT INTO Specialization
+                Spec_Id, Cost_, Spec_Name)";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("Spec_Id", specId);
+                    cmd.Parameters.AddWithValue("Spec_Name", specName);
+                    cmd.Parameters.AddWithValue("Cost_", specCost);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
             Console.WriteLine(" ");
             Console.WriteLine("Press any key to return to Admin menu.");
             Console.ReadKey();
@@ -199,8 +218,7 @@ internal class Program
             Console.Clear();
             Console.WriteLine("Add a Doctor");
             Console.WriteLine("Please state the employee number of the new doctor.");
-            empNumber_string = Console.ReadLine();
-            empNumber = int.Parse(empNumber_string);
+            empNumber = int.Parse(Console.ReadLine());
             Console.WriteLine(" ");
             Console.WriteLine("Please state the doctors full name.");
             doc_FullName = Console.ReadLine();
@@ -208,11 +226,28 @@ internal class Program
             Console.WriteLine("Please state the doctors specialization.");
             specialization_doc = Console.ReadLine();
             Console.WriteLine(" ");
-            Console.WriteLine("Please state the doctors phone number.");
-            phoneNum_string = Console.ReadLine();
-            phoneNum = int.Parse(phoneNum_string);
-            Console.WriteLine("You have added Doctor " + doc_FullName + ", Employee number: " + empNumber + ", Specialization: " + specialization_doc + ", Phone number: " + phoneNum);
+            Console.WriteLine("Please state the password for the doctor.");
+            password = Console.ReadLine();
+            Console.WriteLine("You have added Doctor " + doc_FullName + ", Employee number: " + empNumber + ", Specialization: " + specialization_doc + ".");
             Console.WriteLine(" ");
+
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+
+                string query = @"INSERT INTO Doctor
+                Password_, Doctor_Id, Name_, Spec_Id)";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("Spec_Id", specId);
+                    cmd.Parameters.AddWithValue("Password_", password);
+                    cmd.Parameters.AddWithValue("Name_", doc_FullName);
+                    cmd.Parameters.AddWithValue("Doctor_Id",empNumber);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+
             Console.WriteLine("Press any key to return to Admin menu.");
             Console.ReadKey();
             AdminMain();
@@ -222,8 +257,7 @@ internal class Program
             Console.Clear();
             Console.WriteLine("Delete a Doctor");
             Console.WriteLine("Please state the employee number of the doctor you wish to delete.");
-            empNumber_string = Console.ReadLine();
-            empNumber = int.Parse(empNumber_string);
+            empNumber = int.Parse(Console.ReadLine());
             Console.WriteLine(" ");
             Console.WriteLine("Deleted Doctor " + empNumber + ".");
             Console.ReadKey();
@@ -254,7 +288,7 @@ internal class Program
         Console.WriteLine("2. Appointments.");
         Console.WriteLine("3. Patient information.");
         Console.WriteLine("4. Add Patient."); //Done
-        Console.WriteLine("4. Add Medical record."); //Done
+        Console.WriteLine("5. Add Medical record."); //Done
         Console.WriteLine("6. Back to Login.");
 
         choice = Console.ReadLine();
@@ -279,6 +313,19 @@ internal class Program
         else if (choice == "3")
         {
             Console.Clear();
+            Console.WriteLine("Here are the patients.");;
+
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+
+                string query = @"SELECT * Patient";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+
+                }
+            }
 
             Console.ReadKey();
             DoctorMain();
@@ -303,6 +350,12 @@ internal class Program
             Console.WriteLine(" ");
             Console.WriteLine("Write the birthday for the patient.");
             birthday = DateOnly.Parse(Console.ReadLine());
+            Console.WriteLine(" ");
+            Console.WriteLine("Write the password for the patient.");
+            password = Console.ReadLine();
+            Console.WriteLine(" ");
+            Console.WriteLine("Write the phonenumber for the patient.");
+            phoneNum = int.Parse(Console.ReadLine());
             Console.WriteLine(" ");
             date = DateOnly.FromDateTime(DateTime.Now);
             time = TimeOnly.FromDateTime(DateTime.Now);
@@ -374,6 +427,11 @@ internal class Program
                     cmd.ExecuteNonQuery();
                 }
             }
+            Console.WriteLine(" ");
+            Console.WriteLine("Press any button to continue.");
+            Console.ReadKey();
+            DoctorMain();
+
         }
         else
         {
