@@ -25,6 +25,8 @@ internal class Program
     DateOnly birthday;
     DateOnly date;
     TimeOnly time;
+    public int loggedInMedicalNumber = -1;
+    public int loggedInDoctorId = -1;
 
     // Medical_Records
     int recordNumber;
@@ -52,7 +54,7 @@ internal class Program
         Console.Clear();
 
         Console.WriteLine("Answer with all small letters and no spaces.");
-        Console.WriteLine("Do you wish to log in as an: Admin, Doctor, Patient ?");
+        Console.WriteLine("Do you wish to log in as an: Admin, Doctor, Patient?");
         user = Console.ReadLine();
 
         if (user == "admin")
@@ -83,7 +85,7 @@ internal class Program
 
             case 2:
                 Console.Clear();
-                Console.WriteLine("You have chosen to log in as a Doctor. Please Write your username and password like this; username_password.");
+                Console.WriteLine("You have chosen to log in as a Doctor. Please Write your ID number.");
                 username = Console.ReadLine();
                 DoctorCheck();
                 if (correct_name)
@@ -94,7 +96,7 @@ internal class Program
 
             case 3:
                 Console.Clear();
-                Console.WriteLine("You have chosen to log in as a Patient. Please Write your username and password like this; username_password.");
+                Console.WriteLine("You have chosen to log in as a Patient. Please Write your Medical Number.");
                 username = Console.ReadLine();
                 PatientCheck();
                 if (correct_name)
@@ -114,7 +116,7 @@ internal class Program
         }
         else
         {
-            Console.WriteLine("incorrect username. Returning to login.");
+            Console.WriteLine("incorrect. Returning to login.");
             Console.ReadKey();
             Login();
         }
@@ -122,14 +124,69 @@ internal class Program
 
     void DoctorCheck()
     {
-        if (username == "002_password_")
+        // Allow "doctorId_password" or prompt for password if only id provided.
+        if (string.IsNullOrWhiteSpace(username))
         {
-            Console.WriteLine("You are Logged in!");
-            correct_name = true;
+            Console.WriteLine("Enter doctor id (or doctorId_password):");
+            username = Console.ReadLine();
+        }
+
+        int docId;
+        string pwd;
+
+        if (username.Contains('_'))
+        {
+            var parts = username.Split(new[] { '_' }, 2);
+            if (!int.TryParse(parts[0], out docId))
+            {
+                Console.WriteLine("Invalid doctor id format. Returning to login.");
+                Console.ReadKey();
+                Login();
+                return;
+            }
+            pwd = parts[1];
         }
         else
         {
-            Console.WriteLine("incorrect username. Returning to login.");
+            if (!int.TryParse(username, out docId))
+            {
+                Console.WriteLine("Invalid doctor id format. Returning to login.");
+                Console.ReadKey();
+                Login();
+                return;
+            }
+            Console.Write("Password: ");
+            pwd = Console.ReadLine();
+        }
+
+        try
+        {
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = "SELECT Password_ FROM Doctor WHERE Doctor_Id = @Doctor_Id";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("Doctor_Id", docId);
+                    var result = cmd.ExecuteScalar();
+                    if (result != null && result.ToString() == pwd)
+                    {
+                        Console.WriteLine("You are Logged in!");
+                        loggedInDoctorId = docId;   // store the logged-in doctor's numeric id
+                        correct_name = true;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Incorrect doctor id or password. Returning to login.");
+                        Console.ReadKey();
+                        Login();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Login error: {ex.Message}");
             Console.ReadKey();
             Login();
         }
@@ -137,14 +194,69 @@ internal class Program
 
     void PatientCheck()
     {
-        if (username == "003_password_")
+        // Allow "medicalNumber_password" or prompt for password if only number provided.
+        if (string.IsNullOrWhiteSpace(username))
         {
-            Console.WriteLine("You are Logged in!");
-            correct_name = true;
+            Console.WriteLine("Enter medical number (or medicalNumber_password):");
+            username = Console.ReadLine();
+        }
+
+        int medNum;
+        string pwd;
+
+        if (username.Contains('_'))
+        {
+            var parts = username.Split(new[] { '_' }, 2);
+            if (!int.TryParse(parts[0], out medNum))
+            {
+                Console.WriteLine("Invalid medical number format. Returning to login.");
+                Console.ReadKey();
+                Login();
+                return;
+            }
+            pwd = parts[1];
         }
         else
         {
-            Console.WriteLine("incorrect username. Returning to login.");
+            if (!int.TryParse(username, out medNum))
+            {
+                Console.WriteLine("Invalid medical number format. Returning to login.");
+                Console.ReadKey();
+                Login();
+                return;
+            }
+            Console.Write("Password: ");
+            pwd = Console.ReadLine();
+        }
+
+        try
+        {
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = "SELECT Password_ FROM Patient WHERE Medical_Number = @Medical_Number";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("Medical_Number", medNum);
+                    var result = cmd.ExecuteScalar();
+                    if (result != null && result.ToString() == pwd)
+                    {
+                        Console.WriteLine("You are Logged in!");
+                        loggedInMedicalNumber = medNum;   // store the logged-in patient's numeric id
+                        correct_name = true;
+                    }
+                    else
+                    {
+                        Console.WriteLine("Incorrect medical number or password. Returning to login.");
+                        Console.ReadKey();
+                        Login();
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Login error: {ex.Message}");
             Console.ReadKey();
             Login();
         }
@@ -156,14 +268,15 @@ internal class Program
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
         Console.WriteLine(" ");
-        Console.WriteLine("1. Add a specialization.");
-        Console.WriteLine("2. Add a Doctor.");
-        Console.WriteLine("3. Delete a Doctor.");
-        Console.WriteLine("4. Patient Information. (inc. upcoming appointments)");
-        Console.WriteLine("5. Back to Login.");
+        Console.WriteLine("1. Add a specialization."); //Done
+        Console.WriteLine("2. Add a Doctor.");//Done
+        Console.WriteLine("3. Delete a Doctor.");//Done
+        Console.WriteLine("4. Patient Information. (inc. upcoming appointments)");//Done mostly. Shows patient info and medical records, but not appointments.
+        Console.WriteLine("5. View existing Doctors (+ login info).");//Done
+        Console.WriteLine("6. Back to Login."); //Done
 
         choice = Console.ReadLine();
-        if (choice == "5")
+        if (choice == "6")
         {
             Login();
         }
@@ -171,26 +284,34 @@ internal class Program
         {
             Console.Clear();
             Console.WriteLine("Add a specialization!");
+
+            Console.WriteLine("List of all existing Specializations:");
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Specialization ORDER BY Spec_Id";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"Spec_Id: {reader["Spec_Id"]}, Cost: {reader["Cost_"]}, Spec_Name: {reader["Spec_Name"]}");
+                    }
+                }
+            }
+            Console.WriteLine("________________________________________________");
+            Console.WriteLine(" ");
             Console.WriteLine("Please state the name of the new specialization you wish to add.");
             string specName = Console.ReadLine();
             Console.WriteLine(" ");
             Console.WriteLine("Please state the visit cost.");
-            string specCost = Console.ReadLine();
-            if (!int.TryParse(specCost, out int Cost))
-            {
-                Console.WriteLine("Specialization cost must be a number. Try again.");
-                return;
-            }
+            int Cost = ReadInt("Visit cost: ");
             Console.WriteLine(" ");
             Console.WriteLine("Please state the specialization ID.");
-            string specId = Console.ReadLine();
-            if (!int.TryParse(specId, out int spec_Id))
-            {
-                Console.WriteLine("Specialization ID must be a number. Try again.");
-                return;
-            }
+            int spec_Id = ReadInt("Specialization ID: ");
             Console.WriteLine(" ");
-            Console.WriteLine("You have added specialization: " + specName + ", with a visit cost of: " + specCost + ".");
+            Console.WriteLine("You have added specialization: " + specName + ", with a visit cost of: " + Cost + ".");
 
             using (var conn = GetUserConnection())
             {
@@ -209,23 +330,6 @@ internal class Program
             }
 
             Console.WriteLine(" ");
-            Console.WriteLine("All Specializations in system:");
-
-            using (var conn = GetUserConnection())
-            {
-                conn.Open();
-                string query = @"SELECT * FROM Specialization";
-                using (var cmd = new NpgsqlCommand(query, conn))
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        // print a simple row summary (adjust column names as needed)
-                        Console.WriteLine($"Spec_Id: {reader["Spec_Id"]}, Cost: {reader["Cost_"]}, Spec_Name: {reader["Spec_Name"]}");
-                    }
-                }
-            }
-
             Console.WriteLine("Press any key to return to Admin menu.");
             Console.ReadKey();
             AdminMain();
@@ -239,7 +343,7 @@ internal class Program
             using (var conn = GetUserConnection())
             {
                 conn.Open();
-                string query = @"SELECT * FROM Doctor";
+                string query = @"SELECT * FROM Doctor ORDER BY Doctor_Id";
                 using (var cmd = new NpgsqlCommand(query, conn))
                 using (var reader = cmd.ExecuteReader())
                 {
@@ -252,28 +356,33 @@ internal class Program
             }
             Console.WriteLine("________________________________________________");
             Console.WriteLine(" ");
-            Console.WriteLine("Please state the employee number of the new doctor.");
-            string empNumber = Console.ReadLine();
-            if (!int.TryParse(empNumber, out int empNum))
-            {
-                Console.WriteLine("Employee number must be a number. Try again.");
-                return;
-            }
+            int empNum = ReadInt("Employee number of the new doctor: ");
             Console.WriteLine(" ");
             Console.WriteLine("Please state the doctors full name.");
             string doc_FullName = Console.ReadLine();
             Console.WriteLine(" ");
-            Console.WriteLine("Please state the doctors specialization ID.");
-            string specialization_doc = Console.ReadLine();
-            if (!int.TryParse(specialization_doc, out int spec_Id))
+
+            Console.WriteLine("Please state the doctors specialization ID. List of all specializations here:");
+            using (var conn = GetUserConnection())
             {
-                Console.WriteLine("Specialization ID must be a number. Try again.");
-                return;
+                conn.Open();
+                string query = @"SELECT * FROM Specialization ORDER BY Spec_Id";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"Spec_Id: {reader["Spec_Id"]}, Cost: {reader["Cost_"]}, Spec_Name: {reader["Spec_Name"]}");
+                    }
+                }
             }
+            Console.WriteLine(" ");
+            int spec_Id = ReadInt("Specialization ID: ");
             Console.WriteLine(" ");
             Console.WriteLine("Please state the password for the doctor.");
             string password = Console.ReadLine();
-            Console.WriteLine("You have added Doctor " + doc_FullName + ", Employee number: " + empNumber + ", Specialization: " + specialization_doc + ".");
+            Console.WriteLine("You have added Doctor " + doc_FullName + ", Employee number: " + empNum + ", Specialization: " + spec_Id + ".");
             Console.WriteLine(" ");
 
             using (var conn = GetUserConnection())
@@ -282,7 +391,6 @@ internal class Program
 
                 string query = @"INSERT INTO Doctor (Password_, Doctor_Id, Name_, Spec_Id)
                                  VALUES (@Password_, @Doctor_Id, @Name_, @Spec_Id)";
-
                 using (var cmd = new NpgsqlCommand(query, conn))
                 {
                     cmd.Parameters.AddWithValue("Spec_Id", spec_Id);
@@ -301,17 +409,169 @@ internal class Program
         {
             Console.Clear();
             Console.WriteLine("Delete a Doctor");
-            Console.WriteLine("Please state the employee number of the doctor you wish to delete.");
-            int empNumber = int.Parse(Console.ReadLine());
+            Console.WriteLine("List of all existing Doctors:");
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Doctor ORDER BY Doctor_Id";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"Doctor Id: {reader["Doctor_Id"]}, Doctor Name: {reader["Name_"]}, Specialization: {reader["Spec_Id"]}");
+                    }
+                }
+            }
             Console.WriteLine(" ");
-            Console.WriteLine("Deleted Doctor " + empNumber + ".");
+            int empNumber = ReadInt("Employee number of the doctor to delete: ");
+            Console.WriteLine(" ");
+            Console.WriteLine("Deleting Doctor " + empNumber + ".");
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"DELETE FROM Doctor WHERE Doctor_Id = @Doctor_Id";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("Doctor_Id", empNumber);
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            Console.WriteLine("Doctor " + empNumber + " has been deleted.");
+            Console.WriteLine(" ");
+            Console.WriteLine("All doctors currently in system:");
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Doctor ORDER BY Doctor_Id";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"Doctor Id: {reader["Doctor_Id"]}, Doctor Name: {reader["Name_"]}, Specialization: {reader["Spec_Id"]}");
+                    }
+                }
+            }
             Console.ReadKey();
             AdminMain();
         }
         else if (choice == "4")
         {
             Console.Clear();
+            Console.WriteLine("Here are all the existing patients.");
 
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+
+                string query = @"SELECT * FROM Patient";
+
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"MedicalNumber: {reader["Medical_Number"]}, Name: {reader["F_Name"]} {reader["L_Name"]}");
+                    }
+                }
+            }
+
+            Console.WriteLine("Which patient would you like to look closer at? (ID)");
+
+            int selectedNumber = ReadInt("Patient ID: ");
+
+            // Show basic patient info
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Patient WHERE Medical_Number = @Medical_Number";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("Medical_Number", selectedNumber);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            Console.WriteLine($"MedicalNumber: {reader["Medical_Number"]}, Name: {reader["F_Name"]} {reader["L_Name"]}, Phone Number: {reader["Phone_Number"]}");
+                            Console.WriteLine($"Gender: {reader["Gender"]}, Address: {reader["Adress"]}");
+                            Console.WriteLine();
+                        }
+                        else
+                        {
+                            Console.WriteLine("Patient not found.");
+                            Console.ReadKey();
+                            AdminMain();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Show medical records (diagnosis, description, perscription) for the selected patient
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string recQuery = @"
+                SELECT Booking_Date, Booking_Time, Diagnosis, Description, Perscription
+                FROM Medical_Records
+                WHERE Record_Number = @Record_Number
+                ORDER BY Booking_Date DESC, Booking_Time DESC";
+                using (var cmd = new NpgsqlCommand(recQuery, conn))
+                {
+                    cmd.Parameters.AddWithValue("Record_Number", selectedNumber);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (!reader.HasRows)
+                        {
+                            Console.WriteLine("No medical records found for this patient.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Medical records:");
+                            while (reader.Read())
+                            {
+                                var bookingDate = reader["Booking_Date"];
+                                var bookingTime = reader["Booking_Time"];
+                                Console.WriteLine($"Date: {bookingDate}, Time: {bookingTime}");
+                                Console.WriteLine($"  Diagnosis   : {reader["Diagnosis"]}");
+                                Console.WriteLine($"  Description : {reader["Description"]}");
+                                Console.WriteLine($"  Prescription: {reader["Perscription"]}");
+                                Console.WriteLine("--------------------------------------------------");
+                            }
+                        }
+                    }
+                }
+            }
+            Console.WriteLine(" ");
+            Console.WriteLine("Press any button to return to Admin menu.");
+            Console.ReadKey();
+            AdminMain();
+
+            Console.ReadKey();
+            AdminMain();
+        }
+        else if (choice == "5")
+        {
+            Console.Clear();
+            Console.WriteLine("All existing Doctors in the system:");
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Doctor ORDER BY Doctor_Id";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"Doctor Id: {reader["Doctor_Id"]}, Doctor Name: {reader["Name_"]}, Specialization: {reader["Spec_Id"]}, Password: {reader["Password_"]}");
+                    }
+                }
+            }
             Console.ReadKey();
             AdminMain();
         }
@@ -332,10 +592,10 @@ internal class Program
         Console.WriteLine(" ");
         Console.WriteLine("1. Availability.");
         Console.WriteLine("2. Appointments.");
-        Console.WriteLine("3. Patient information.");
-        Console.WriteLine("4. Add Patient.");
-        Console.WriteLine("5. Add Medical record.");
-        Console.WriteLine("6. Back to Login.");
+        Console.WriteLine("3. Patient information.");//Done
+        Console.WriteLine("4. Add Patient.");//Done
+        Console.WriteLine("5. Add Medical record.");//Done
+        Console.WriteLine("6. Back to Login."); //Done
 
         choice = Console.ReadLine();
         if (choice == "6")
@@ -359,7 +619,7 @@ internal class Program
         else if (choice == "3")
         {
             Console.Clear();
-            Console.WriteLine("Here are the patients.");
+            Console.WriteLine("Here are all the existing patients.");
 
             using (var conn = GetUserConnection())
             {
@@ -378,12 +638,97 @@ internal class Program
                 }
             }
 
+            Console.WriteLine("Which patient would you like to look closer at? (ID)");
+
+            int selectedNumber = ReadInt("Patient ID: ");
+
+            // Show basic patient info
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Patient WHERE Medical_Number = @Medical_Number";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("Medical_Number", selectedNumber);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            Console.WriteLine($"MedicalNumber: {reader["Medical_Number"]}, Name: {reader["F_Name"]} {reader["L_Name"]}, Phone Number: {reader["Phone_Number"]}");
+                            Console.WriteLine($"Gender: {reader["Gender"]}, Address: {reader["Adress"]}");
+                            Console.WriteLine();
+                        }
+                        else
+                        {
+                            Console.WriteLine("Patient not found.");
+                            Console.ReadKey();
+                            DoctorMain();
+                            return;
+                        }
+                    }
+                }
+            }
+
+            // Show medical records (diagnosis, description, perscription) for the selected patient
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string recQuery = @"
+                SELECT Booking_Date, Booking_Time, Diagnosis, Description, Perscription
+                FROM Medical_Records
+                WHERE Record_Number = @Record_Number
+                ORDER BY Booking_Date DESC, Booking_Time DESC";
+                using (var cmd = new NpgsqlCommand(recQuery, conn))
+                {
+                    cmd.Parameters.AddWithValue("Record_Number", selectedNumber);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (!reader.HasRows)
+                        {
+                            Console.WriteLine("No medical records found for this patient.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Medical records:");
+                            while (reader.Read())
+                            {
+                                var bookingDate = reader["Booking_Date"];
+                                var bookingTime = reader["Booking_Time"];
+                                Console.WriteLine($"Date: {bookingDate}, Time: {bookingTime}");
+                                Console.WriteLine($"  Diagnosis   : {reader["Diagnosis"]}");
+                                Console.WriteLine($"  Description : {reader["Description"]}");
+                                Console.WriteLine($"  Prescription: {reader["Perscription"]}");
+                                Console.WriteLine("--------------------------------------------------");
+                            }
+                        }
+                    }
+                }
+            }
+            Console.WriteLine(" ");
+            Console.WriteLine("Press any button to return to Doctor menu.");
             Console.ReadKey();
             DoctorMain();
         }
         else if (choice == "4")
         {
             Console.Clear();
+            Console.WriteLine("All registered patients: ");
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Patient ORDER BY Medical_Number";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"MedicalNumber: {reader["Medical_Number"]}, Name: {reader["F_Name"]} {reader["L_Name"]}");
+                    }
+                }
+            }
+            Console.WriteLine("________________________________________________");
+            Console.WriteLine(" ");
             Console.WriteLine("Write the first name of the patient you wish to add.");
             patName_F = Console.ReadLine();
             Console.WriteLine(" ");
@@ -396,17 +741,14 @@ internal class Program
             Console.WriteLine("Write the Adress of the patient.");
             adress = Console.ReadLine();
             Console.WriteLine(" ");
-            Console.WriteLine("Write the Medical Number for the patient.");
-            medicalNumber = int.Parse(Console.ReadLine());
+            medicalNumber = ReadInt("Write the Medical Number for the patient: ");
             Console.WriteLine(" ");
-            Console.WriteLine("Write the birthday for the patient.");
-            birthday = DateOnly.Parse(Console.ReadLine());
+            birthday = ReadDate("Write the birthday for the patient (YYYY-MM-DD): ");
             Console.WriteLine(" ");
             Console.WriteLine("Write the password for the patient.");
             password = Console.ReadLine();
             Console.WriteLine(" ");
-            Console.WriteLine("Write the phonenumber for the patient.");
-            int phoneNum = int.Parse(Console.ReadLine());
+            int phoneNum = ReadInt("Write the phonenumber for the patient: ");
             Console.WriteLine(" ");
             date = DateOnly.FromDateTime(DateTime.Now);
             time = TimeOnly.FromDateTime(DateTime.Now);
@@ -437,6 +779,21 @@ internal class Program
             }
 
             Console.WriteLine(" ");
+            Console.WriteLine("All registered patients: ");
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Patient ORDER BY Medical_Number";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"MedicalNumber: {reader["Medical_Number"]}, Name: {reader["F_Name"]} {reader["L_Name"]}");
+                    }
+                }
+            }
             Console.WriteLine("Press any button to continue.");
             Console.ReadLine();
             DoctorMain();
@@ -445,12 +802,9 @@ internal class Program
         {
             Console.Clear();
             Console.WriteLine("Add a medical record for your patient.");
-            Console.WriteLine("Write the patients medical number.");
-            recordNumber = int.Parse(Console.ReadLine());
-            Console.WriteLine("Write the patients booking date.");
-            recordsDate = DateOnly.Parse(Console.ReadLine());
-            Console.WriteLine("Write the patients booking time.");
-            recordsTime = TimeOnly.Parse(Console.ReadLine());
+            recordNumber = ReadInt("Write the patients medical number: ");
+            recordsDate = ReadDate("Write the patients booking date (YYYY-MM-DD): ");
+            recordsTime = ReadTime("Write the patients booking time (HH:mm[:ss]): ");
             Console.WriteLine("Write the patients Diagnosis.");
             diagnosis = Console.ReadLine();
             Console.WriteLine("Write the diagnosis description.");
@@ -497,22 +851,59 @@ internal class Program
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
         Console.WriteLine(" ");
-        Console.WriteLine("1. Register.");
-        Console.WriteLine("2. User Information.");
-        Console.WriteLine("3. Book an appointment/show appointments.");
-        Console.WriteLine("4. Diagnosis and descriptions");
-        Console.WriteLine("5. Back to Login.");
+        Console.WriteLine("1. User Information.");//Done
+        Console.WriteLine("2. Book an appointment/show appointments.");
+        Console.WriteLine("3. Diagnosis and descriptions");//Done
+        Console.WriteLine("4. Back to Login.");//Done
 
         choice = Console.ReadLine();
-        if (choice == "5")
+        if (choice == "4")
         {
             Login();
         }
         else if (choice == "1")
         {
             Console.Clear();
-            Console.WriteLine("Register.");
+            Console.WriteLine("View your information.");
+            Console.WriteLine(" ");
+            if (loggedInMedicalNumber == -1)
+            {
+                Console.WriteLine("No patient logged in. Please log in first.");
+                Console.ReadKey();
+                Login();
+                return;
+            }
 
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Patient WHERE Medical_Number = @Medical_Number";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("Medical_Number", loggedInMedicalNumber);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            Console.WriteLine($"MedicalNumber : {reader["Medical_Number"]}");
+                            Console.WriteLine($"Name          : {reader["F_Name"]} {reader["L_Name"]}");
+                            Console.WriteLine($"Gender        : {reader["Gender"]}");
+                            Console.WriteLine($"Address       : {reader["Adress"]}");
+                            Console.WriteLine($"Phone Number  : {reader["Phone_Number"]}");
+                            Console.WriteLine($"Birth Date    : {reader["Birth_Date"]}");
+                            Console.WriteLine($"Registered on : {reader["Registration_Date"]}");
+                            Console.WriteLine($"Password      : {reader["Password_"]}");
+                            Console.WriteLine();
+                        }
+                        else
+                        {
+                            Console.WriteLine("Patient not found.");
+                        }
+                    }
+                }
+            }
+            Console.WriteLine(" ");
+            Console.WriteLine("Press any button to return to Patient menu.");
             Console.ReadKey();
             PatientMain();
         }
@@ -527,15 +918,48 @@ internal class Program
         else if (choice == "3")
         {
             Console.Clear();
-
-            Console.ReadKey();
-            PatientMain();
-
-        }
-        else if (choice == "4")
-        {
-            Console.Clear();
-
+            Console.WriteLine("View your diagnosis and descriptions from your medical records.");
+            if (loggedInMedicalNumber == -1)
+            {
+                Console.WriteLine("No patient logged in. Please log in first.");
+                Console.ReadKey();
+                Login();
+                return;
+            }
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string recQuery = @"
+                SELECT Booking_Date, Booking_Time, Diagnosis, Description, Perscription
+                FROM Medical_Records
+                WHERE Record_Number = @Record_Number
+                ORDER BY Booking_Date DESC, Booking_Time DESC";
+                using (var cmd = new NpgsqlCommand(recQuery, conn))
+                {
+                    cmd.Parameters.AddWithValue("Record_Number", loggedInMedicalNumber);
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (!reader.HasRows)
+                        {
+                            Console.WriteLine("No medical records found for this patient.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Your medical records:");
+                            while (reader.Read())
+                            {
+                                var bookingDate = reader["Booking_Date"];
+                                var bookingTime = reader["Booking_Time"];
+                                Console.WriteLine($"Date: {bookingDate}, Time: {bookingTime}");
+                                Console.WriteLine($"  Diagnosis   : {reader["Diagnosis"]}");
+                                Console.WriteLine($"  Description : {reader["Description"]}");
+                                Console.WriteLine($"  Prescription: {reader["Perscription"]}");
+                                Console.WriteLine("--------------------------------------------------");
+                            }
+                        }
+                    }
+                }
+            }
             Console.ReadKey();
             PatientMain();
 
@@ -548,4 +972,41 @@ internal class Program
             PatientMain();
         }
     }
-}
+
+    // --- Safe input helpers ---
+    private int ReadInt(string prompt)
+    {
+        while (true)
+        {
+            Console.Write(prompt);
+            var s = Console.ReadLine();
+            if (int.TryParse(s, out var v))
+                return v;
+            Console.WriteLine("Invalid number. Please enter digits only.");
+        }
+    }
+
+    private DateOnly ReadDate(string prompt)
+    {
+        while (true)
+        {
+            Console.Write(prompt);
+            var s = Console.ReadLine();
+            if (DateOnly.TryParse(s, out var d))
+                return d;
+            Console.WriteLine("Invalid date. Use YYYY-MM-DD or a valid date format.");
+        }
+    }
+
+    private TimeOnly ReadTime(string prompt)
+    {
+        while (true)
+        {
+            Console.Write(prompt);
+            var s = Console.ReadLine();
+            if (TimeOnly.TryParse(s, out var t))
+                return t;
+            Console.WriteLine("Invalid time. Use HH:mm or HH:mm:ss.");
+        }
+    }
+}   
