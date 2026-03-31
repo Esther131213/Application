@@ -263,7 +263,7 @@ internal class Program
             Console.WriteLine("Please state the doctors full name.");
             string doc_FullName = Console.ReadLine();
             Console.WriteLine(" ");
-            Console.WriteLine("Please state the doctors specialization.");
+            Console.WriteLine("Please state the doctors specialization ID.");
             string specialization_doc = Console.ReadLine();
             if (!int.TryParse(specialization_doc, out int spec_Id))
             {
