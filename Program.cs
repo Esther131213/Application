@@ -1,29 +1,21 @@
 ﻿using Npgsql;
+using System;
 
 internal class Program
 {
+    // Instance state
     public string user;
     public int user_;
     public string username;
-
     public bool correct_name;
+    string choice;
 
-    static string choice;
-    //Speciality
+    // Speciality
     string specName;
     string specCost;
     int specId;
 
-    //Admin stuff
-
-    /*
-    //Doctor stuff
-    static int empNumber;
-    static string doc_FullName;
-    static string specialization_doc;
-    static int phoneNum;
-    */
-    //Patient stuff
+    // Patient stuff
     string patName_F;
     string patName_L;
     string adress;
@@ -34,7 +26,7 @@ internal class Program
     DateOnly date;
     TimeOnly time;
 
-    //Medical_Records
+    // Medical_Records
     int recordNumber;
     TimeOnly recordsTime;
     DateOnly recordsDate;
@@ -44,36 +36,18 @@ internal class Program
 
     public static void Main(string[] args)
     {
-        Login();
+        var app = new Program();
+        app.Login();
         Console.ReadKey();
     }
-    public static NpgsqlConnection GetUserConnection() 
+
+    public NpgsqlConnection GetUserConnection() // For patients and doctors
     {
         string connString = $"Host=postgres.mau.se;Username=ar7661;Password=mj8nrus2;Database=ar7661;Port=55432";
-
         return new NpgsqlConnection(connString);
     }
 
-    public static void ListSpecializations()
-    {
-        using (var conn = GetUserConnection())
-        {
-            conn.Open();
-            var cmd = new NpgsqlCommand("SELECT * FROM Specialization", conn);
-
-            using (var reader = cmd.ExecuteReader())
-            {
-                string result = "Specializations:\n";
-                while (reader.Read())
-                {
-                    result += $"ID: {reader["Spec_Id"]}, Name: {reader["Spec_Name"]}, Visit Cost: {reader["Cost_"]}\n";
-                }
-                Console.WriteLine(result);
-            }
-        }
-    }
-
-    static void Login()
+    void Login()
     {
         Console.Clear();
 
@@ -101,7 +75,7 @@ internal class Program
                 Console.WriteLine("You have chosen to log in as an Admin. Please Write your username and password like this; username_password.");
                 username = Console.ReadLine();
                 AdminCheck();
-                if (correct_name = true)
+                if (correct_name)
                 {
                     AdminMain();
                 }
@@ -112,7 +86,7 @@ internal class Program
                 Console.WriteLine("You have chosen to log in as a Doctor. Please Write your username and password like this; username_password.");
                 username = Console.ReadLine();
                 DoctorCheck();
-                if (correct_name = true)
+                if (correct_name)
                 {
                     DoctorMain();
                 }
@@ -123,7 +97,7 @@ internal class Program
                 Console.WriteLine("You have chosen to log in as a Patient. Please Write your username and password like this; username_password.");
                 username = Console.ReadLine();
                 PatientCheck();
-                if (correct_name = true)
+                if (correct_name)
                 {
                     PatientMain();
                 }
@@ -131,7 +105,7 @@ internal class Program
         }
     }
 
-    static void AdminCheck()
+    void AdminCheck()
     {
         if (username == "001_password_")
         {
@@ -146,7 +120,7 @@ internal class Program
         }
     }
 
-    static void DoctorCheck()
+    void DoctorCheck()
     {
         if (username == "002_password_")
         {
@@ -161,7 +135,7 @@ internal class Program
         }
     }
 
-    static void PatientCheck()
+    void PatientCheck()
     {
         if (username == "003_password_")
         {
@@ -176,20 +150,17 @@ internal class Program
         }
     }
 
-    //SQL STUFF______________________________________________________________________________________________________________SQL STUFF________
-
-
-    //ADMIN STUFF____________________________________________________________________________________________________________ADMIN STUFF______
-    public static void AdminMain()
+    // ADMIN STUFF
+    public void AdminMain()
     {
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
         Console.WriteLine(" ");
-        Console.WriteLine("1. Add a specialization."); //Done
-        Console.WriteLine("2. Add a Doctor."); //Done
+        Console.WriteLine("1. Add a specialization.");
+        Console.WriteLine("2. Add a Doctor.");
         Console.WriteLine("3. Delete a Doctor.");
         Console.WriteLine("4. Patient Information. (inc. upcoming appointments)");
-        Console.WriteLine("5. Back to Login.");//Done
+        Console.WriteLine("5. Back to Login.");
 
         choice = Console.ReadLine();
         if (choice == "5")
@@ -200,9 +171,6 @@ internal class Program
         {
             Console.Clear();
             Console.WriteLine("Add a specialization!");
-            Console.WriteLine("Here are the current specializations:");
-            ListSpecializations();
-            Console.WriteLine(" ");
             Console.WriteLine("Please state the name of the new specialization you wish to add.");
             string specName = Console.ReadLine();
             Console.WriteLine(" ");
@@ -223,37 +191,41 @@ internal class Program
             }
             Console.WriteLine(" ");
             Console.WriteLine("You have added specialization: " + specName + ", with a visit cost of: " + specCost + ".");
-           
+
             using (var conn = GetUserConnection())
             {
                 conn.Open();
 
-                string query = @"INSERT INTO specialization (spec_id, specname, cost_)
-                     VALUES (@spec_id, @specname, @cost_)";
-
-                Console.WriteLine(query);
+                string query = @"INSERT INTO Specialization (Spec_Id, Cost_, Spec_Name)
+                                 VALUES (@Spec_Id, @Cost_, @Spec_Name)";
 
                 using (var cmd = new NpgsqlCommand(query, conn))
                 {
-                    cmd.Parameters.AddWithValue("@spec_id", specId);
-                    cmd.Parameters.AddWithValue("@specname", specName);
-                    cmd.Parameters.AddWithValue("@cost_", Cost);
-
-                    try
-                    {
-                        cmd.ExecuteNonQuery();
-                        Console.WriteLine("Insert worked.");
-                    }
-                    catch (PostgresException ex)
-                    {
-                        Console.WriteLine("Message: " + ex.MessageText);
-                        Console.WriteLine("Position: " + ex.Position);
-                        Console.WriteLine("SqlState: " + ex.SqlState);
-                    }
+                    cmd.Parameters.AddWithValue("Spec_Id", spec_Id);
+                    cmd.Parameters.AddWithValue("Cost_", Cost);
+                    cmd.Parameters.AddWithValue("Spec_Name", specName);
+                    cmd.ExecuteNonQuery();
                 }
             }
 
             Console.WriteLine(" ");
+            Console.WriteLine("All Specializations in system:");
+
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Specialization";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"Spec_Id: {reader["Spec_Id"]}, Cost: {reader["Cost_"]}, Spec_Name: {reader["Spec_Name"]}");
+                    }
+                }
+            }
+
             Console.WriteLine("Press any key to return to Admin menu.");
             Console.ReadKey();
             AdminMain();
@@ -262,6 +234,24 @@ internal class Program
         {
             Console.Clear();
             Console.WriteLine("Add a Doctor");
+            Console.WriteLine(" ");
+            Console.WriteLine("All doctors already in system:");
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string query = @"SELECT * FROM Doctor";
+                using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"Doctor Id: {reader["Doctor_Id"]}, Doctor Name: {reader["Name_"]}, Specialization: {reader["Spec_Id"]}");
+                    }
+                }
+            }
+            Console.WriteLine("________________________________________________");
+            Console.WriteLine(" ");
             Console.WriteLine("Please state the employee number of the new doctor.");
             string empNumber = Console.ReadLine();
             if (!int.TryParse(empNumber, out int empNum))
@@ -290,16 +280,15 @@ internal class Program
             {
                 conn.Open();
 
-                string query = @"INSERT INTO Doctor
-                (Password_, Doctor_Id, Name_, Spec_Id)
-                VALUES (@Password_, @Doctor_Id, @Name_, @Spec_Id)";
+                string query = @"INSERT INTO Doctor (Password_, Doctor_Id, Name_, Spec_Id)
+                                 VALUES (@Password_, @Doctor_Id, @Name_, @Spec_Id)";
 
                 using (var cmd = new NpgsqlCommand(query, conn))
                 {
-                    cmd.Parameters.AddWithValue("Password_", password);
-                    cmd.Parameters.AddWithValue("Doctor_Id", empNum);
-                    cmd.Parameters.AddWithValue("Name_", doc_FullName);
                     cmd.Parameters.AddWithValue("Spec_Id", spec_Id);
+                    cmd.Parameters.AddWithValue("Password_", password);
+                    cmd.Parameters.AddWithValue("Name_", doc_FullName);
+                    cmd.Parameters.AddWithValue("Doctor_Id", empNum);
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -313,7 +302,7 @@ internal class Program
             Console.Clear();
             Console.WriteLine("Delete a Doctor");
             Console.WriteLine("Please state the employee number of the doctor you wish to delete.");
-            empNumber = int.Parse(Console.ReadLine());
+            int empNumber = int.Parse(Console.ReadLine());
             Console.WriteLine(" ");
             Console.WriteLine("Deleted Doctor " + empNumber + ".");
             Console.ReadKey();
@@ -334,8 +323,9 @@ internal class Program
             AdminMain();
         }
     }
-    //DOCTOR STUFF__________________________________________________________________________________________________________DOCTOR STUFF______
-    public static void DoctorMain()
+
+    // DOCTOR STUFF
+    public void DoctorMain()
     {
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
@@ -343,8 +333,8 @@ internal class Program
         Console.WriteLine("1. Availability.");
         Console.WriteLine("2. Appointments.");
         Console.WriteLine("3. Patient information.");
-        Console.WriteLine("4. Add Patient."); //Done
-        Console.WriteLine("5. Add Medical record."); //Done
+        Console.WriteLine("4. Add Patient.");
+        Console.WriteLine("5. Add Medical record.");
         Console.WriteLine("6. Back to Login.");
 
         choice = Console.ReadLine();
@@ -369,18 +359,23 @@ internal class Program
         else if (choice == "3")
         {
             Console.Clear();
-            Console.WriteLine("Here are the patients.");;
+            Console.WriteLine("Here are the patients.");
 
             using (var conn = GetUserConnection())
             {
                 conn.Open();
 
-                string query = @"SELECT * Patient";
+                string query = @"SELECT * FROM Patient";
 
                 using (var cmd = new NpgsqlCommand(query, conn))
+                using (var reader = cmd.ExecuteReader())
                 {
-
-                } 
+                    while (reader.Read())
+                    {
+                        // print a simple row summary (adjust column names as needed)
+                        Console.WriteLine($"MedicalNumber: {reader["Medical_Number"]}, Name: {reader["F_Name"]} {reader["L_Name"]}");
+                    }
+                }
             }
 
             Console.ReadKey();
@@ -411,7 +406,7 @@ internal class Program
             password = Console.ReadLine();
             Console.WriteLine(" ");
             Console.WriteLine("Write the phonenumber for the patient.");
-            phoneNum = int.Parse(Console.ReadLine());
+            int phoneNum = int.Parse(Console.ReadLine());
             Console.WriteLine(" ");
             date = DateOnly.FromDateTime(DateTime.Now);
             time = TimeOnly.FromDateTime(DateTime.Now);
@@ -423,9 +418,8 @@ internal class Program
             {
                 conn.Open();
 
-                string query = @"INSERT INTO Patient
-                (F_Name, L_Name, Gender, Adress, Password_, Registration_Date, Medical_Number, Birth_Date, Phone_Number)
-                VALUES(F_Name, L_Name, Gender, Adress, Password_, Registration_Date, Medical_Number, Birth_Date, Phone_Number)";
+                string query = @"INSERT INTO Patient (F_Name, L_Name, Gender, Adress, Password_, Registration_Date, Medical_Number, Birth_Date, Phone_Number)
+                                 VALUES (@F_Name, @L_Name, @Gender, @Adress, @Password_, @Registration_Date, @Medical_Number, @Birth_Date, @Phone_Number)";
 
                 using (var cmd = new NpgsqlCommand(query, conn))
                 {
@@ -447,7 +441,7 @@ internal class Program
             Console.ReadLine();
             DoctorMain();
         }
-        else if (choice == "5") 
+        else if (choice == "5")
         {
             Console.Clear();
             Console.WriteLine("Add a medical record for your patient.");
@@ -469,9 +463,8 @@ internal class Program
             {
                 conn.Open();
 
-                string query = @"INSERT INTO Medical_Records
-                (Record_Number, Booking_Time, Booking_Date, Diagnosis, Description, Perscription)
-                VALUES(Record_Number, Booking_Time, Booking_Date, Diagnosis, Description, Perscription)";
+                string query = @"INSERT INTO Medical_Records (Record_Number, Booking_Time, Booking_Date, Diagnosis, Description, Perscription)
+                                 VALUES (@Record_Number, @Booking_Time, @Booking_Date, @Diagnosis, @Description, @Perscription)";
 
                 using (var cmd = new NpgsqlCommand(query, conn))
                 {
@@ -481,7 +474,6 @@ internal class Program
                     cmd.Parameters.AddWithValue("Diagnosis", diagnosis);
                     cmd.Parameters.AddWithValue("Description", description);
                     cmd.Parameters.AddWithValue("Perscription", perscription);
-
                     cmd.ExecuteNonQuery();
                 }
             }
@@ -489,7 +481,6 @@ internal class Program
             Console.WriteLine("Press any button to continue.");
             Console.ReadKey();
             DoctorMain();
-
         }
         else
         {
@@ -500,8 +491,8 @@ internal class Program
         }
     }
 
-    //PATIENT STUFF__________________________________________________________________________________________________________PATIENT STUFF______
-    public static void PatientMain()
+    // PATIENT STUFF
+    public void PatientMain()
     {
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
