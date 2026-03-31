@@ -200,6 +200,9 @@ internal class Program
         {
             Console.Clear();
             Console.WriteLine("Add a specialization!");
+            Console.WriteLine("Here are the current specializations:");
+            ListSpecializations();
+            Console.WriteLine(" ");
             Console.WriteLine("Please state the name of the new specialization you wish to add.");
             string specName = Console.ReadLine();
             Console.WriteLine(" ");
@@ -221,14 +224,12 @@ internal class Program
             Console.WriteLine(" ");
             Console.WriteLine("You have added specialization: " + specName + ", with a visit cost of: " + specCost + ".");
            
-            ListSpecializations();
-            /*
             using (var conn = GetUserConnection())
             {
                 conn.Open();
 
-                string query = @"INSERT INTO specialization (spec_id, specname, cost)
-                     VALUES (@spec_id, @specname, @cost)";
+                string query = @"INSERT INTO specialization (spec_id, specname, cost_)
+                     VALUES (@spec_id, @specname, @cost_)";
 
                 Console.WriteLine(query);
 
@@ -236,7 +237,7 @@ internal class Program
                 {
                     cmd.Parameters.AddWithValue("@spec_id", specId);
                     cmd.Parameters.AddWithValue("@specname", specName);
-                    cmd.Parameters.AddWithValue("@cost", Cost);
+                    cmd.Parameters.AddWithValue("@cost_", Cost);
 
                     try
                     {
@@ -251,7 +252,6 @@ internal class Program
                     }
                 }
             }
-            */
 
             Console.WriteLine(" ");
             Console.WriteLine("Press any key to return to Admin menu.");
