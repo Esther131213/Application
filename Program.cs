@@ -635,7 +635,7 @@ internal class Program
         Console.WriteLine("2. View and manage Appointments.");
         Console.WriteLine("3. Patient information.");
         Console.WriteLine("4. Add Patient.");
-        Console.WriteLine("5. Add Medical record.");
+        Console.WriteLine("5. Add Medical record. Add after patients booked time.");
         Console.WriteLine("6. Back to Login.");
 
         choice = Console.ReadLine();
@@ -932,6 +932,7 @@ internal class Program
             Console.WriteLine("Write the administered perscription.");
             perscription = Console.ReadLine();
 
+            // Ensure there is an appointment (booking) for this patient at the given date/time
             using (var conn = GetUserConnection())
             {
                 conn.Open();
@@ -1681,9 +1682,18 @@ internal class Program
 
     private void UpdatePatientColumn(int medNumber, string columnName, object value)
     {
-        // Only allow updating specific allowed columns to avoid SQL injection risks.
-        var allowed = new HashSet<string> { "F_Name", "L_Name", "Gender", "Adress", "Phone_Number", "Password_" };
-        if (!allowed.Contains(columnName))
+        // Map allowed logical names to actual DB column names (lower-case, unquoted).
+        var allowedMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            { "F_Name", "f_name" },
+            { "L_Name", "l_name" },
+            { "Gender", "gender" },
+            { "Adress", "adress" },
+            { "Phone_Number", "phone_number" },
+            { "Password_", "password_" }
+        };
+
+        if (!allowedMap.TryGetValue(columnName, out var dbColumn))
         {
             Console.WriteLine("Updating that column is not allowed.");
             Console.ReadKey();
@@ -1692,10 +1702,13 @@ internal class Program
 
         using var conn = GetUserConnection();
         conn.Open();
-        var sql = $@"UPDATE Patient SET ""{columnName}"" = @val WHERE Medical_Number = @Medical_Number";
+
+        // Use the mapped column name unquoted so PostgreSQL resolves it to the lowercase column.
+        var sql = $@"UPDATE Patient SET {dbColumn} = @val WHERE Medical_Number = @Medical_Number";
         using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("val", value ?? DBNull.Value);
         cmd.Parameters.AddWithValue("Medical_Number", medNumber);
+
         var rows = cmd.ExecuteNonQuery();
         if (rows > 0)
         {
