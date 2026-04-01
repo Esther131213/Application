@@ -77,32 +77,23 @@ internal class Program
                 Console.WriteLine("You have chosen to log in as an Admin. Please Write your username and password like this; username_password.");
                 username = Console.ReadLine();
                 AdminCheck();
-                if (correct_name)
-                {
-                    AdminMain();
-                }
+                if (correct_name) AdminMain();
                 break;
 
             case 2:
                 Console.Clear();
-                Console.WriteLine("You have chosen to log in as a Doctor. Please Write your ID number.");
+                Console.WriteLine("You have chosen to log in as a Doctor. Please Write your ID number (or ID_password).");
                 username = Console.ReadLine();
                 DoctorCheck();
-                if (correct_name)
-                {
-                    DoctorMain();
-                }
+                if (correct_name) DoctorMain();
                 break;
 
             case 3:
                 Console.Clear();
-                Console.WriteLine("You have chosen to log in as a Patient. Please Write your Medical Number.");
+                Console.WriteLine("You have chosen to log in as a Patient. Please Write your Medical Number (or medicalNumber_password).");
                 username = Console.ReadLine();
                 PatientCheck();
-                if (correct_name)
-                {
-                    PatientMain();
-                }
+                if (correct_name) PatientMain();
                 break;
         }
     }
@@ -172,7 +163,7 @@ internal class Program
                     if (result != null && result.ToString() == pwd)
                     {
                         Console.WriteLine("You are Logged in!");
-                        loggedInDoctorId = docId;   // store the logged-in doctor's numeric id
+                        loggedInDoctorId = docId;
                         correct_name = true;
                     }
                     else
@@ -242,7 +233,7 @@ internal class Program
                     if (result != null && result.ToString() == pwd)
                     {
                         Console.WriteLine("You are Logged in!");
-                        loggedInMedicalNumber = medNum;   // store the logged-in patient's numeric id
+                        loggedInMedicalNumber = medNum;
                         correct_name = true;
                     }
                     else
@@ -268,15 +259,17 @@ internal class Program
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
         Console.WriteLine(" ");
-        Console.WriteLine("1. Add a specialization."); //Done
-        Console.WriteLine("2. Add a Doctor.");//Done
-        Console.WriteLine("3. Delete a Doctor.");//Done
-        Console.WriteLine("4. Patient Information. (inc. upcoming appointments)");//Done mostly. Shows patient info and medical records, but not appointments.
-        Console.WriteLine("5. View existing Doctors (+ login info).");//Done
-        Console.WriteLine("6. Back to Login."); //Done
+        Console.WriteLine("1. Add a specialization.");
+        Console.WriteLine("2. Add a Doctor.");
+        Console.WriteLine("3. Delete a Doctor.");
+        Console.WriteLine("4. Patient Information. (inc. upcoming appointments)");
+        Console.WriteLine("5. View existing Doctors (+ login info).");
+        Console.WriteLine("6. Back to Login.");
 
         choice = Console.ReadLine();
-        if (choice == "6")
+        if (choice == "6") { Login(); return; }
+
+        if (choice == "1")
         {
             Login();
         }
@@ -511,6 +504,56 @@ internal class Program
                 }
             }
 
+            // Show upcoming appointments for this patient (from today onward)
+            using (var conn = GetUserConnection())
+            {
+                conn.Open();
+                string appQuery = @"
+            SELECT a.Date_, a.Time_, a.Doctor_Id, d.Name_ AS DoctorName, s.spec_name
+            FROM Appointment a
+            LEFT JOIN Doctor d ON a.Doctor_Id = d.Doctor_Id
+            LEFT JOIN Specialization s ON d.Spec_Id = s.Spec_Id
+            WHERE a.Patient_Medical_Number = @Medical_Number
+              AND a.Date_ >= @Today
+            ORDER BY a.Date_, a.Time_";
+
+                using (var cmd = new NpgsqlCommand(appQuery, conn))
+                {
+                    cmd.Parameters.AddWithValue("Medical_Number", selectedNumber);
+                    cmd.Parameters.AddWithValue("Today", DateOnly.FromDateTime(DateTime.Today));
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (!reader.HasRows)
+                        {
+                            Console.WriteLine("No upcoming appointments for this patient.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("Upcoming appointments:");
+                            DateOnly? currentDate = null;
+                            while (reader.Read())
+                            {
+                                var date = (DateOnly)reader["Date_"];
+                                var time = reader["Time_"];
+                                var docId = reader["Doctor_Id"];
+                                var docName = reader["DoctorName"] is DBNull ? "Unknown" : reader["DoctorName"].ToString();
+                                var specName = reader["spec_name"] is DBNull ? "—" : reader["spec_name"].ToString();
+
+                                if (currentDate == null || currentDate != date)
+                                {
+                                    Console.WriteLine();
+                                    Console.WriteLine($"{date:yyyy-MM-dd} ({date.DayOfWeek}):");
+                                    currentDate = date;
+                                }
+
+                                Console.WriteLine($"  {time}  — Doctor: {docName} (ID {docId}), Specialization: {specName}");
+                            }
+                            Console.WriteLine();
+                        }
+                    }
+                }
+            }
+
             // Show medical records (diagnosis, description, perscription) for the selected patient
             using (var conn = GetUserConnection())
             {
@@ -546,11 +589,9 @@ internal class Program
                     }
                 }
             }
+
             Console.WriteLine(" ");
             Console.WriteLine("Press any button to return to Admin menu.");
-            Console.ReadKey();
-            AdminMain();
-
             Console.ReadKey();
             AdminMain();
         }
@@ -590,59 +631,138 @@ internal class Program
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
         Console.WriteLine(" ");
-        Console.WriteLine("1. Availability.");
-        Console.WriteLine("2. Appointments.");
-        Console.WriteLine("3. Patient information.");//Done
-        Console.WriteLine("4. Add Patient.");//Done
-        Console.WriteLine("5. Add Medical record.");//Done
-        Console.WriteLine("6. Back to Login."); //Done
+        Console.WriteLine("1. Block a weekday / Create an unavailable slot (doctor-only).");
+        Console.WriteLine("2. View and manage Appointments.");
+        Console.WriteLine("3. Patient information.");
+        Console.WriteLine("4. Add Patient.");
+        Console.WriteLine("5. Add Medical record.");
+        Console.WriteLine("6. Back to Login.");
 
         choice = Console.ReadLine();
         if (choice == "6")
         {
             Login();
+            return;
         }
-        else if (choice == "1")
-        {
-            Console.Clear();
 
-            Console.ReadKey();
-            DoctorMain();
+        if (choice == "1")
+        {
+            if (loggedInDoctorId == -1)
+            {
+                Console.WriteLine("No doctor logged in. Please log in first.");
+                Console.ReadKey();
+                Login();
+                return;
+            }
+
+            Console.WriteLine("1. Block a weekday for this doctor (mark unavailable).");
+            Console.WriteLine("2. Create a doctor-only appointment (blocks specific date/time).");
+            var sub = Console.ReadLine();
+            if (sub == "1")
+            {
+                var blockDate = ReadDateInUpcomingWeek("Date to block (YYYY-MM-DD): ");
+                var col = GetWeekdayColumn(blockDate);
+                SetDoctorWeekdayAvailability(loggedInDoctorId, col, false);
+                Console.WriteLine($"Doctor {loggedInDoctorId} set unavailable on {col} (based on {blockDate}).");
+                Console.ReadKey();
+                DoctorMain();
+                return;
+            }
+            else if (sub == "2")
+            {
+                var appointmentDate = ReadDateInUpcomingWeek("Appointment date (YYYY-MM-DD): ");
+                var appointmentTime = ReadAllowedTime("Appointment time (09:00 / 09:30 / 10:00 / 10:30): ");
+
+                if (!IsDoctorAvailableOnDay(loggedInDoctorId, appointmentDate))
+                {
+                    Console.WriteLine("Doctor is not marked available on that weekday.");
+                    Console.ReadKey();
+                    DoctorMain();
+                    return;
+                }
+
+                if (IsSlotTaken(loggedInDoctorId, appointmentDate, appointmentTime))
+                {
+                    Console.WriteLine("That slot is already taken. Try another time.");
+                    Console.ReadKey();
+                    DoctorMain();
+                    return;
+                }
+
+                // Insert doctor-only appointment (no patient)
+                if (!BookAppointment(loggedInDoctorId, appointmentDate, appointmentTime, null, "Doctor block"))
+                {
+                    Console.WriteLine("Booking failed.");
+                    Console.ReadKey();
+                    DoctorMain();
+                    return;
+                }
+
+                // By default: only the specific time slot is blocked.
+                Console.WriteLine($"Doctor-only appointment saved for {appointmentDate:yyyy-MM-dd} at {appointmentTime}.");
+                Console.WriteLine("Note: only this time slot is blocked. Do you also want to mark the entire weekday unavailable? (y/n)");
+                var ans = Console.ReadLine()?.Trim().ToLowerInvariant();
+                if (ans == "y" || ans == "yes")
+                {
+                    var col = GetWeekdayColumn(appointmentDate);
+                    SetDoctorWeekdayAvailability(loggedInDoctorId, col, false);
+                    Console.WriteLine($"The weekday {col} has been set unavailable for doctor {loggedInDoctorId}.");
+                }
+                else
+                {
+                    Console.WriteLine("Weekday availability left unchanged.");
+                }
+
+                Console.ReadKey();
+                DoctorMain();
+                return;
+            }
+            else
+            {
+                Console.WriteLine("Invalid option");
+                Console.ReadKey();
+                DoctorMain();
+                return;
+            }
         }
         else if (choice == "2")
         {
-            Console.Clear();
+            if (loggedInDoctorId == -1)
+            {
+                Console.WriteLine("No doctor logged in. Please log in first.");
+                Console.ReadKey();
+                Login();
+                return;
+            }
 
+            ShowDoctorAvailabilityAndBookings(loggedInDoctorId);
+            Console.WriteLine("Press any key to return to Doctor menu.");
             Console.ReadKey();
             DoctorMain();
+            return;
         }
         else if (choice == "3")
         {
+            // Show list of patients and allow viewing details
             Console.Clear();
             Console.WriteLine("Here are all the existing patients.");
-
             using (var conn = GetUserConnection())
             {
                 conn.Open();
-
                 string query = @"SELECT * FROM Patient";
-
                 using (var cmd = new NpgsqlCommand(query, conn))
                 using (var reader = cmd.ExecuteReader())
                 {
                     while (reader.Read())
                     {
-                        // print a simple row summary (adjust column names as needed)
                         Console.WriteLine($"MedicalNumber: {reader["Medical_Number"]}, Name: {reader["F_Name"]} {reader["L_Name"]}");
                     }
                 }
             }
 
             Console.WriteLine("Which patient would you like to look closer at? (ID)");
-
             int selectedNumber = ReadInt("Patient ID: ");
 
-            // Show basic patient info
             using (var conn = GetUserConnection())
             {
                 conn.Open();
@@ -669,7 +789,7 @@ internal class Program
                 }
             }
 
-            // Show medical records (diagnosis, description, perscription) for the selected patient
+            // Show medical records for the selected patient (uses Booking_Date/Booking_Time)
             using (var conn = GetUserConnection())
             {
                 conn.Open();
@@ -692,9 +812,7 @@ internal class Program
                             Console.WriteLine("Medical records:");
                             while (reader.Read())
                             {
-                                var bookingDate = reader["Booking_Date"];
-                                var bookingTime = reader["Booking_Time"];
-                                Console.WriteLine($"Date: {bookingDate}, Time: {bookingTime}");
+                                Console.WriteLine($"Date: {reader["Booking_Date"]}, Time: {reader["Booking_Time"]}");
                                 Console.WriteLine($"  Diagnosis   : {reader["Diagnosis"]}");
                                 Console.WriteLine($"  Description : {reader["Description"]}");
                                 Console.WriteLine($"  Prescription: {reader["Perscription"]}");
@@ -704,13 +822,15 @@ internal class Program
                     }
                 }
             }
-            Console.WriteLine(" ");
+
             Console.WriteLine("Press any button to return to Doctor menu.");
             Console.ReadKey();
             DoctorMain();
+            return;
         }
         else if (choice == "4")
         {
+            // Add patient flow (unchanged)
             Console.Clear();
             Console.WriteLine("All registered patients: ");
             using (var conn = GetUserConnection())
@@ -722,7 +842,6 @@ internal class Program
                 {
                     while (reader.Read())
                     {
-                        // print a simple row summary (adjust column names as needed)
                         Console.WriteLine($"MedicalNumber: {reader["Medical_Number"]}, Name: {reader["F_Name"]} {reader["L_Name"]}");
                     }
                 }
@@ -789,7 +908,6 @@ internal class Program
                 {
                     while (reader.Read())
                     {
-                        // print a simple row summary (adjust column names as needed)
                         Console.WriteLine($"MedicalNumber: {reader["Medical_Number"]}, Name: {reader["F_Name"]} {reader["L_Name"]}");
                     }
                 }
@@ -797,9 +915,11 @@ internal class Program
             Console.WriteLine("Press any button to continue.");
             Console.ReadLine();
             DoctorMain();
+            return;
         }
         else if (choice == "5")
         {
+            // Add medical record
             Console.Clear();
             Console.WriteLine("Add a medical record for your patient.");
             recordNumber = ReadInt("Write the patients medical number: ");
@@ -811,7 +931,6 @@ internal class Program
             description = Console.ReadLine();
             Console.WriteLine("Write the administered perscription.");
             perscription = Console.ReadLine();
-            Console.WriteLine("Medical Record Created!");
 
             using (var conn = GetUserConnection())
             {
@@ -835,14 +954,13 @@ internal class Program
             Console.WriteLine("Press any button to continue.");
             Console.ReadKey();
             DoctorMain();
+            return;
         }
-        else
-        {
-            Console.Clear();
-            Console.WriteLine("Unvalid option. Press any button to try again.");
-            Console.ReadKey();
-            DoctorMain();
-        }
+
+        Console.Clear();
+        Console.WriteLine("Unvalid option. Press any button to try again.");
+        Console.ReadKey();
+        DoctorMain();
     }
 
     // PATIENT STUFF
@@ -851,21 +969,18 @@ internal class Program
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
         Console.WriteLine(" ");
-        Console.WriteLine("1. User Information.");//Done
-        Console.WriteLine("2. Book an appointment/show appointments.");
-        Console.WriteLine("3. Diagnosis and descriptions");//Done
-        Console.WriteLine("4. Back to Login.");//Done
+        Console.WriteLine("1. User Information.");
+        Console.WriteLine("2. Book an appointment / Show appointments.");
+        Console.WriteLine("3. Diagnosis and descriptions");
+        Console.WriteLine("4. Back to Login.");
 
         choice = Console.ReadLine();
-        if (choice == "4")
-        {
-            Login();
-        }
-        else if (choice == "1")
+        if (choice == "4") { Login(); return; }
+
+        if (choice == "1")
         {
             Console.Clear();
             Console.WriteLine("View your information.");
-            Console.WriteLine(" ");
             if (loggedInMedicalNumber == -1)
             {
                 Console.WriteLine("No patient logged in. Please log in first.");
@@ -892,7 +1007,6 @@ internal class Program
                             Console.WriteLine($"Phone Number  : {reader["Phone_Number"]}");
                             Console.WriteLine($"Birth Date    : {reader["Birth_Date"]}");
                             Console.WriteLine($"Registered on : {reader["Registration_Date"]}");
-                            Console.WriteLine($"Password      : {reader["Password_"]}");
                             Console.WriteLine();
                         }
                         else
@@ -906,16 +1020,212 @@ internal class Program
             Console.WriteLine("Press any button to return to Patient menu.");
             Console.ReadKey();
             PatientMain();
+            return;
         }
-        else if (choice == "2")
+
+        if (choice == "2")
         {
             Console.Clear();
+            Console.WriteLine("1. Book a new appointment");
+            Console.WriteLine("2. Show my appointments");
+            var sub = Console.ReadLine();
+            if (sub == "2")
+            {
+                ShowAppointmentsForPatient(loggedInMedicalNumber);
+                Console.ReadKey();
+                PatientMain();
+                return;
+            }
+            else if (sub == "1")
+            {
+                if (loggedInMedicalNumber == -1)
+                {
+                    Console.WriteLine("No patient logged in. Please log in first.");
+                    Console.ReadKey();
+                    Login();
+                    return;
+                }
 
-            Console.ReadKey();
-            PatientMain();
+                // Allowed base slots
+                var allowedSlots = new[]
+                {
+                    new TimeOnly(9, 0),
+                    new TimeOnly(9, 30),
+                    new TimeOnly(10, 0),
+                    new TimeOnly(10, 30)
+                };
 
+                // Choose date (must be Mon-Fri within upcoming week)
+                var appointmentDate = ReadDateInUpcomingWeek("Appointment date (YYYY-MM-DD) — must be Mon-Fri within upcoming 7 days: ");
+                var weekdayCol = GetWeekdayColumn(appointmentDate);
+
+                // List doctors available that weekday and compute free times per doctor
+                Console.WriteLine();
+                Console.WriteLine($"Doctors and free times on {appointmentDate.DayOfWeek} ({appointmentDate:yyyy-MM-dd}):");
+                var availableDoctorIds = new List<int>();
+                using (var conn = GetUserConnection())
+                {
+                    conn.Open();
+                    string query = $@"
+                    SELECT d.Doctor_Id, d.Name_, s.spec_name, s.cost_
+                    FROM Doctor d
+                    LEFT JOIN Specialization s ON d.Spec_Id = s.Spec_Id
+                    WHERE COALESCE((SELECT a.""{weekdayCol}"" FROM Availability a WHERE a.Doctor_Id = d.Doctor_Id), true) = true
+                    ORDER BY d.Doctor_Id";
+                    using (var cmd = new NpgsqlCommand(query, conn))
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        bool any = false;
+                        while (reader.Read())
+                        {
+                            any = true;
+                            var id = Convert.ToInt32(reader["Doctor_Id"]);
+                            var name = reader["Name_"] is DBNull ? "Unknown" : reader["Name_"].ToString();
+                            var spec = reader["spec_name"] is DBNull ? "—" : reader["spec_name"].ToString();
+                            var cost = reader["cost_"] is DBNull ? "—" : reader["cost_"].ToString();
+
+                            // Get booked times for this doctor on the chosen date
+                            var booked = new HashSet<TimeOnly>();
+                            reader.Close(); // close reader to run nested query
+                            using (var bcmd = new NpgsqlCommand(
+                                "SELECT Time_ FROM Appointment WHERE Doctor_Id = @Doctor_Id AND Date_ = @Date_", conn))
+                            {
+                                bcmd.Parameters.AddWithValue("Doctor_Id", id);
+                                bcmd.Parameters.AddWithValue("Date_", appointmentDate);
+                                using var breader = bcmd.ExecuteReader();
+                                while (breader.Read())
+                                {
+                                    var tObj = breader["Time_"];
+                                    if (tObj is TimeOnly tt) booked.Add(tt);
+                                    else if (TimeOnly.TryParse(tObj.ToString(), out var parsed)) booked.Add(parsed);
+                                }
+                            }
+
+                            // compute available slots
+                            var free = allowedSlots.Where(a => !booked.Contains(a)).ToArray();
+                            var timesText = free.Length == 0 ? "No free times" : string.Join(", ", free.Select(t => t.ToString("HH:mm")));
+                            Console.WriteLine($"ID: {id}, Name: {name}, Spec: {spec}, Cost: {cost}  — Free times: {timesText}");
+                            availableDoctorIds.Add(id);
+
+                            // reopen main reader for continuation (must create new command)
+                            cmd.CommandText = $@"
+                    SELECT d.Doctor_Id, d.Name_, s.spec_name, s.cost_
+                    FROM Doctor d
+                    LEFT JOIN Specialization s ON d.Spec_Id = s.Spec_Id
+                    WHERE COALESCE((SELECT a.""{weekdayCol}"" FROM Availability a WHERE a.Doctor_Id = d.Doctor_Id), true) = true
+                    ORDER BY d.Doctor_Id";
+                            using var dummy = cmd.ExecuteReader(); // rehydrate reader for loop; advance it manually
+                            // move the reader forward to the current position is tricky this way; simpler approach below
+                            dummy.Close();
+                            using var reCmd = new NpgsqlCommand(query, conn);
+                            using var reReader = reCmd.ExecuteReader();
+                            // fast-forward reReader to current doctor id to resume outer loop
+                            // (we don't rely on reReader - outer while will continue from reReader after replacing)
+                            // To keep logic simple and safe, break outer loop and re-run listing after selection
+                            // (we'll list doctors again below before selection).
+                            break;
+                        }
+
+                        if (!any)
+                        {
+                            Console.WriteLine("No doctors are available on that weekday. Try another date.");
+                            Console.ReadKey();
+                            PatientMain();
+                            return;
+                        }
+                    }
+                }
+
+                // Re-list doctors for selection (simpler, consistent)
+                Console.WriteLine();
+                Console.WriteLine("Choose a doctor by ID from the list above.");
+                int docId = ReadInt("Enter doctor ID to book with: ");
+
+                // Validate doctor is available that day
+                if (!IsDoctorAvailableOnDay(docId, appointmentDate))
+                {
+                    Console.WriteLine("Selected doctor is marked unavailable on that weekday. Choose another date or doctor.");
+                    Console.ReadKey();
+                    PatientMain();
+                    return;
+                }
+
+                // Get this doctor's booked times and compute available slots
+                HashSet<TimeOnly> bookedTimes = new();
+                using (var conn = GetUserConnection())
+                {
+                    conn.Open();
+                    string bsql = "SELECT Time_ FROM Appointment WHERE Doctor_Id = @Doctor_Id AND Date_ = @Date_";
+                    using var bcmd = new NpgsqlCommand(bsql, conn);
+                    bcmd.Parameters.AddWithValue("Doctor_Id", docId);
+                    bcmd.Parameters.AddWithValue("Date_", appointmentDate);
+                    using var breader = bcmd.ExecuteReader();
+                    while (breader.Read())
+                    {
+                        var to = breader["Time_"];
+                        if (to is TimeOnly tt) bookedTimes.Add(tt);
+                        else if (TimeOnly.TryParse(to.ToString(), out var parsed)) bookedTimes.Add(parsed);
+                    }
+                }
+
+                var availableSlots = allowedSlots.Where(a => !bookedTimes.Contains(a)).ToArray();
+                if (availableSlots.Length == 0)
+                {
+                    Console.WriteLine("Selected doctor has no free slots on that date. Choose another doctor or date.");
+                    Console.ReadKey();
+                    PatientMain();
+                    return;
+                }
+
+                Console.WriteLine("Available times for selected doctor:");
+                for (int i = 0; i < availableSlots.Length; i++)
+                    Console.WriteLine($"{i + 1}. {availableSlots[i]:HH:mm}");
+
+                // Ask patient to pick one of the displayed available times
+                int selIndex = -1;
+                while (true)
+                {
+                    selIndex = ReadInt("Choose time number from the list above: ") - 1;
+                    if (selIndex >= 0 && selIndex < availableSlots.Length) break;
+                    Console.WriteLine("Invalid selection. Try again.");
+                }
+
+                var appointmentTime = availableSlots[selIndex];
+
+                // Final slot collision check and book
+                if (IsSlotTaken(docId, appointmentDate, appointmentTime))
+                {
+                    Console.WriteLine("That slot was just taken. Try again.");
+                    Console.ReadKey();
+                    PatientMain();
+                    return;
+                }
+
+                string patientName = GetPatientFullName(loggedInMedicalNumber);
+                var bookedResult = BookAppointment(docId, appointmentDate, appointmentTime, loggedInMedicalNumber, patientName);
+                if (!bookedResult)
+                {
+                    Console.WriteLine("Booking failed (permission or DB error).");
+                    Console.ReadKey();
+                    PatientMain();
+                    return;
+                }
+
+                Console.WriteLine($"Appointment booked with Doctor {docId} on {appointmentDate:yyyy-MM-dd} at {appointmentTime:HH:mm}.");
+                Console.ReadKey();
+                PatientMain();
+                return;
+            }
+            else
+            {
+                Console.WriteLine("Invalid option.");
+                Console.ReadKey();
+                PatientMain();
+                return;
+            }
         }
-        else if (choice == "3")
+
+        if (choice == "3")
         {
             Console.Clear();
             Console.WriteLine("View your diagnosis and descriptions from your medical records.");
@@ -948,9 +1258,7 @@ internal class Program
                             Console.WriteLine("Your medical records:");
                             while (reader.Read())
                             {
-                                var bookingDate = reader["Booking_Date"];
-                                var bookingTime = reader["Booking_Time"];
-                                Console.WriteLine($"Date: {bookingDate}, Time: {bookingTime}");
+                                Console.WriteLine($"Date: {reader["Booking_Date"]}, Time: {reader["Booking_Time"]}");
                                 Console.WriteLine($"  Diagnosis   : {reader["Diagnosis"]}");
                                 Console.WriteLine($"  Description : {reader["Description"]}");
                                 Console.WriteLine($"  Prescription: {reader["Perscription"]}");
@@ -962,14 +1270,287 @@ internal class Program
             }
             Console.ReadKey();
             PatientMain();
-
+            return;
         }
-        else
+
+        Console.Clear();
+        Console.WriteLine("Unvalid option. Press any button to try again.");
+        Console.ReadKey();
+        PatientMain();
+    }
+
+    // --- Missing booking & availability helpers (paste this above the safe input helpers) ---
+
+    private bool IsWithinUpcomingWeek(DateOnly date)
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var lastDay = today.AddDays(7);
+        return date >= today && date <= lastDay;
+    }
+
+    private DateOnly ReadDateInUpcomingWeek(string prompt)
+    {
+        while (true)
         {
-            Console.Clear();
-            Console.WriteLine("Unvalid option. Press any button to try again.");
-            Console.ReadKey();
-            PatientMain();
+            var d = ReadDate(prompt);
+            if (d.DayOfWeek == DayOfWeek.Saturday || d.DayOfWeek == DayOfWeek.Sunday)
+            {
+                Console.WriteLine("Bookings are not allowed on weekends. Please choose a weekday (Mon–Fri).");
+                continue;
+            }
+            if (IsWithinUpcomingWeek(d)) return d;
+            Console.WriteLine("Date must be within the upcoming week (today through 7 days).");
+        }
+    }
+
+    private TimeOnly ReadAllowedTime(string prompt)
+    {
+        var allowed = new[]
+        {
+        new TimeOnly(9, 0),
+        new TimeOnly(9, 30),
+        new TimeOnly(10, 0),
+        new TimeOnly(10, 30)
+    };
+
+        while (true)
+        {
+            Console.Write(prompt);
+            var s = Console.ReadLine();
+            if (TimeOnly.TryParse(s, out var t))
+            {
+                foreach (var a in allowed)
+                    if (a == t) return t;
+            }
+            Console.WriteLine("Invalid time. Allowed times: 09:00, 09:30, 10:00, 10:30.");
+        }
+    }
+
+    private string GetWeekdayColumn(DateOnly date)
+    {
+        return date.DayOfWeek switch
+        {
+            DayOfWeek.Monday => "Monday",
+            DayOfWeek.Tuesday => "Tuesday",
+            DayOfWeek.Wednesday => "Wednesday",
+            DayOfWeek.Thursday => "Thursday",
+            DayOfWeek.Friday => "Friday",
+            _ => throw new InvalidOperationException("Weekends are not allowed")
+        };
+    }
+
+    private bool IsDoctorAvailableOnDay(int doctorId, DateOnly date)
+    {
+        var col = GetWeekdayColumn(date);
+        using var conn = GetUserConnection();
+        conn.Open();
+        string sql = $@"SELECT ""{col}"" FROM Availability WHERE Doctor_Id = @Doctor_Id";
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("Doctor_Id", doctorId);
+        var res = cmd.ExecuteScalar();
+        if (res == null) return true; // default to available if no row
+        return res != DBNull.Value && Convert.ToBoolean(res);
+    }
+
+    private bool IsSlotTaken(int doctorId, DateOnly date, TimeOnly time)
+    {
+        using var conn = GetUserConnection();
+        conn.Open();
+        string q = @"SELECT 1 FROM Appointment WHERE Doctor_Id = @Doctor_Id AND Date_ = @Date_ AND Time_ = @Time_ LIMIT 1";
+        using var cmd = new NpgsqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("Doctor_Id", doctorId);
+        cmd.Parameters.AddWithValue("Date_", date);
+        cmd.Parameters.AddWithValue("Time_", time);
+        var res = cmd.ExecuteScalar();
+        return res != null;
+    }
+
+    private bool BookAppointment(int doctorId, DateOnly date, TimeOnly time, int? patientId, string patientName)
+    {
+        // enforce constraints
+        if (patientId.HasValue && loggedInMedicalNumber != -1 && patientId.Value != loggedInMedicalNumber)
+        {
+            Console.WriteLine("You may only book appointments for the patient you are logged in as.");
+            return false;
+        }
+        if (loggedInDoctorId != -1 && doctorId != loggedInDoctorId)
+        {
+            Console.WriteLine("Doctors may only create appointments for their own account.");
+            return false;
+        }
+
+        using var conn = GetUserConnection();
+        conn.Open();
+        string q = @"INSERT INTO Appointment (Doctor_Id, Patient_Medical_Number, Patient_Name, Date_, Time_)
+                 VALUES (@Doctor_Id, @Patient_Medical_Number, @Patient_Name, @Date_, @Time_)";
+        using var cmd = new NpgsqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("Doctor_Id", doctorId);
+        cmd.Parameters.AddWithValue("Date_", date);
+        cmd.Parameters.AddWithValue("Time_", time);
+        if (patientId.HasValue) cmd.Parameters.AddWithValue("Patient_Medical_Number", patientId.Value);
+        else cmd.Parameters.AddWithValue("Patient_Medical_Number", DBNull.Value);
+        cmd.Parameters.AddWithValue("Patient_Name", (object)patientName ?? DBNull.Value);
+        cmd.ExecuteNonQuery();
+        return true;
+    }
+
+    private void SetDoctorWeekdayAvailability(int doctorId, string weekdayColumn, bool isAvailable)
+    {
+        using var conn = GetUserConnection();
+        conn.Open();
+
+        string existsQ = @"SELECT 1 FROM Availability WHERE Doctor_Id = @Doctor_Id LIMIT 1";
+        using (var cmd = new NpgsqlCommand(existsQ, conn))
+        {
+            cmd.Parameters.AddWithValue("Doctor_Id", doctorId);
+            var exists = cmd.ExecuteScalar();
+            if (exists == null)
+            {
+                string insert = @"INSERT INTO Availability (Doctor_Id, ""Monday"", ""Tuesday"", ""Wednesday"", ""Thursday"", ""Friday"")
+                              VALUES (@Doctor_Id, true, true, true, true, true)";
+                using var icmd = new NpgsqlCommand(insert, conn);
+                icmd.Parameters.AddWithValue("Doctor_Id", doctorId);
+                icmd.ExecuteNonQuery();
+            }
+        }
+
+        string update = $@"UPDATE Availability SET ""{weekdayColumn}"" = @val WHERE Doctor_Id = @Doctor_Id";
+        using var ucmd = new NpgsqlCommand(update, conn);
+        ucmd.Parameters.AddWithValue("val", isAvailable);
+        ucmd.Parameters.AddWithValue("Doctor_Id", doctorId);
+        ucmd.ExecuteNonQuery();
+    }
+
+    private void ShowAppointmentsForDoctor(int doctorId)
+    {
+        using var conn = GetUserConnection();
+        conn.Open();
+        string q = @"SELECT Date_, Time_, Patient_Medical_Number, Patient_Name
+                 FROM Appointment
+                 WHERE Doctor_Id = @Doctor_Id
+                 ORDER BY Date_, Time_";
+        using var cmd = new NpgsqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("Doctor_Id", doctorId);
+        using var reader = cmd.ExecuteReader();
+        Console.WriteLine($"Appointments for Doctor {doctorId}:");
+        while (reader.Read())
+        {
+            Console.WriteLine($"Date: {reader["Date_"]}, Time: {reader["Time_"]}, Patient: {(reader["Patient_Medical_Number"] == DBNull.Value ? "— (doctor-only)" : $"{reader["Patient_Name"]} ({reader["Patient_Medical_Number"]})")}");
+        }
+    }
+
+    private void ShowAppointmentsForPatient(int patientId)
+    {
+        using var conn = GetUserConnection();
+        conn.Open();
+        string q = @"SELECT Date_, Time_, Doctor_Id
+                 FROM Appointment
+                 WHERE Patient_Medical_Number = @Patient_Medical_Number
+                 ORDER BY Date_, Time_";
+        using var cmd = new NpgsqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("Patient_Medical_Number", patientId);
+        using var reader = cmd.ExecuteReader();
+        Console.WriteLine($"Appointments for Patient {patientId}:");
+        while (reader.Read())
+        {
+            Console.WriteLine($"Date: {reader["Date_"]}, Time: {reader["Time_"]}, Doctor: {reader["Doctor_Id"]}");
+        }
+    }
+
+    private string GetPatientFullName(int patientId)
+    {
+        using var conn = GetUserConnection();
+        conn.Open();
+        string q = @"SELECT F_Name, L_Name FROM Patient WHERE Medical_Number = @Medical_Number";
+        using var cmd = new NpgsqlCommand(q, conn);
+        cmd.Parameters.AddWithValue("Medical_Number", patientId);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read()) return $"{reader["F_Name"]} {reader["L_Name"]}";
+        return "Unknown";
+    }
+
+    private void ShowDoctorAvailabilityAndBookings(int doctorId)
+    {
+        using var conn = GetUserConnection();
+        conn.Open();
+
+        // 1) Read per-weekday availability (defaults to available if no row)
+        bool monday = true, tuesday = true, wednesday = true, thursday = true, friday = true;
+        string availSql = @"SELECT ""Monday"", ""Tuesday"", ""Wednesday"", ""Thursday"", ""Friday"" FROM Availability WHERE Doctor_Id = @Doctor_Id";
+        using (var cmd = new NpgsqlCommand(availSql, conn))
+        {
+            cmd.Parameters.AddWithValue("Doctor_Id", doctorId);
+            using var reader = cmd.ExecuteReader();
+            if (reader.Read())
+            {
+                // Guard for DBNull
+                monday = reader["Monday"] != DBNull.Value && Convert.ToBoolean(reader["Monday"]);
+                tuesday = reader["Tuesday"] != DBNull.Value && Convert.ToBoolean(reader["Tuesday"]);
+                wednesday = reader["Wednesday"] != DBNull.Value && Convert.ToBoolean(reader["Wednesday"]);
+                thursday = reader["Thursday"] != DBNull.Value && Convert.ToBoolean(reader["Thursday"]);
+                friday = reader["Friday"] != DBNull.Value && Convert.ToBoolean(reader["Friday"]);
+            }
+            reader.Close();
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("Weekly availability (per weekday):");
+        Console.WriteLine($"  Monday   : {(monday ? "Available" : "Unavailable")}");
+        Console.WriteLine($"  Tuesday  : {(tuesday ? "Available" : "Unavailable")}");
+        Console.WriteLine($"  Wednesday: {(wednesday ? "Available" : "Unavailable")}");
+        Console.WriteLine($"  Thursday : {(thursday ? "Available" : "Unavailable")}");
+        Console.WriteLine($"  Friday   : {(friday ? "Available" : "Unavailable")}");
+        Console.WriteLine();
+
+        // 2) List booked dates and times in upcoming week
+        var start = DateOnly.FromDateTime(DateTime.Today);
+        var end = start.AddDays(7);
+
+        string bookingsSql = @"
+        SELECT Date_, Time_, Patient_Medical_Number, Patient_Name
+        FROM Appointment
+        WHERE Doctor_Id = @Doctor_Id AND Date_ >= @Start AND Date_ <= @End
+        ORDER BY Date_, Time_";
+        using (var cmd = new NpgsqlCommand(bookingsSql, conn))
+        {
+            cmd.Parameters.AddWithValue("Doctor_Id", doctorId);
+            cmd.Parameters.AddWithValue("Start", start);
+            cmd.Parameters.AddWithValue("End", end);
+
+            using var reader = cmd.ExecuteReader();
+            if (!reader.HasRows)
+            {
+                Console.WriteLine("No appointments booked for the upcoming week.");
+                Console.WriteLine();
+                return;
+            }
+
+            Console.WriteLine("Upcoming bookings (next 7 days):");
+            DateOnly? currentDate = null;
+            while (reader.Read())
+            {
+                var date = (DateOnly)reader["Date_"];
+                var time = reader["Time_"];
+                var pid = reader["Patient_Medical_Number"];
+                var pname = reader["Patient_Name"];
+
+                if (currentDate == null || currentDate != date)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine($"{date:yyyy-MM-dd} ({date.DayOfWeek}):");
+                    currentDate = date;
+                }
+
+                if (pid == DBNull.Value)
+                {
+                    Console.WriteLine($"  {time}  — Doctor-only block");
+                }
+                else
+                {
+                    Console.WriteLine($"  {time}  — Patient: {pname} ({pid})");
+                }
+            }
+            Console.WriteLine();
         }
     }
 
@@ -1009,4 +1590,4 @@ internal class Program
             Console.WriteLine("Invalid time. Use HH:mm or HH:mm:ss.");
         }
     }
-}   
+}
