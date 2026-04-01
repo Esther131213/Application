@@ -969,7 +969,7 @@ internal class Program
         Console.Clear();
         Console.WriteLine("What do you want to do? Write the number of your option.");
         Console.WriteLine(" ");
-        Console.WriteLine("1. User Information.");
+        Console.WriteLine("1. User Information. (Edit information)");
         Console.WriteLine("2. Book an appointment / Show appointments.");
         Console.WriteLine("3. Diagnosis and descriptions");
         Console.WriteLine("4. Back to Login.");
@@ -989,38 +989,24 @@ internal class Program
                 return;
             }
 
-            using (var conn = GetUserConnection())
+            // Display current info
+            DisplayPatientInfo(loggedInMedicalNumber);
+
+            // Offer edit options
+            Console.WriteLine();
+            Console.WriteLine("Do you want to edit your information? (y/n)");
+            var editAns = Console.ReadLine()?.Trim().ToLowerInvariant();
+            if (editAns == "y" || editAns == "yes")
             {
-                conn.Open();
-                string query = @"SELECT * FROM Patient WHERE Medical_Number = @Medical_Number";
-                using (var cmd = new NpgsqlCommand(query, conn))
-                {
-                    cmd.Parameters.AddWithValue("Medical_Number", loggedInMedicalNumber);
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        if (reader.Read())
-                        {
-                            Console.WriteLine($"MedicalNumber : {reader["Medical_Number"]}");
-                            Console.WriteLine($"Name          : {reader["F_Name"]} {reader["L_Name"]}");
-                            Console.WriteLine($"Gender        : {reader["Gender"]}");
-                            Console.WriteLine($"Address       : {reader["Adress"]}");
-                            Console.WriteLine($"Phone Number  : {reader["Phone_Number"]}");
-                            Console.WriteLine($"Birth Date    : {reader["Birth_Date"]}");
-                            Console.WriteLine($"Registered on : {reader["Registration_Date"]}");
-                            Console.WriteLine();
-                        }
-                        else
-                        {
-                            Console.WriteLine("Patient not found.");
-                        }
-                    }
-                }
+                EditPatientInformation(loggedInMedicalNumber);
             }
-            Console.WriteLine(" ");
-            Console.WriteLine("Press any button to return to Patient menu.");
-            Console.ReadKey();
-            PatientMain();
-            return;
+            else
+            {
+                Console.WriteLine("Press any button to return to Patient menu.");
+                Console.ReadKey();
+                PatientMain();
+                return;
+            }
         }
 
         if (choice == "2")
@@ -1435,8 +1421,7 @@ internal class Program
         Console.WriteLine($"Appointments for Doctor {doctorId}:");
         while (reader.Read())
         {
-            Console.WriteLine($"Date: {reader["Date_"]}, Time: {reader["Time_"]}, Patient: {(reader["Patient_Medical_Number"] == DBNull.Value ? "— (doctor-only)" : $"{reader["Patient_Name"]} ({reader["Patient_Medical_Number"]})")}");
-        }
+            Console.WriteLine($"Date: {reader["Date_"]}, Time: {reader["Time_"]}, Patient: {(reader["Patient_Medical_Number"] == DBNull.Value ? "— (doctor-only)" : $"{reader["Patient_Name"]} ({reader["Patient_Medical_Number"]})")}");        }
     }
 
     private void ShowAppointmentsForPatient(int patientId)
@@ -1589,5 +1574,139 @@ internal class Program
                 return t;
             Console.WriteLine("Invalid time. Use HH:mm or HH:mm:ss.");
         }
+    }
+
+    // --- Patient edit helpers ---
+    private void DisplayPatientInfo(int medNumber)
+    {
+        using var conn = GetUserConnection();
+        conn.Open();
+        string query = @"SELECT Medical_Number, F_Name, L_Name, Gender, Adress, Phone_Number, Birth_Date, Registration_Date FROM Patient WHERE Medical_Number = @Medical_Number";
+        using var cmd = new NpgsqlCommand(query, conn);
+        cmd.Parameters.AddWithValue("Medical_Number", medNumber);
+        using var reader = cmd.ExecuteReader();
+        if (reader.Read())
+        {
+            Console.WriteLine($"MedicalNumber : {reader["Medical_Number"]}");
+            Console.WriteLine($"Name          : {reader["F_Name"]} {reader["L_Name"]}");
+            Console.WriteLine($"Gender        : {reader["Gender"]}");
+            Console.WriteLine($"Address       : {reader["Adress"]}");
+            Console.WriteLine($"Phone Number  : {reader["Phone_Number"]}");
+            Console.WriteLine($"Birth Date    : {reader["Birth_Date"]}");
+            Console.WriteLine($"Registered on : {reader["Registration_Date"]}");
+            Console.WriteLine();
+        }
+        else
+        {
+            Console.WriteLine("Patient not found.");
+        }
+    }
+
+    private void EditPatientInformation(int medNumber)
+    {
+        while (true)
+        {
+            Console.Clear();
+            Console.WriteLine("Edit your information. Current values:");
+            DisplayPatientInfo(medNumber);
+
+            Console.WriteLine("Select the field to edit:");
+            Console.WriteLine("1. First name");
+            Console.WriteLine("2. Last name");
+            Console.WriteLine("3. Gender");
+            Console.WriteLine("4. Address");
+            Console.WriteLine("5. Phone number");
+            Console.WriteLine("6. Password");
+            Console.WriteLine("7. Back to Patient menu");
+            var sel = Console.ReadLine();
+
+            if (sel == "7")
+            {
+                PatientMain();
+                return;
+            }
+
+            switch (sel)
+            {
+                case "1":
+                    Console.Write("New first name: ");
+                    var newF = Console.ReadLine();
+                    if (!string.IsNullOrWhiteSpace(newF))
+                        UpdatePatientColumn(medNumber, "F_Name", newF);
+                    break;
+                case "2":
+                    Console.Write("New last name: ");
+                    var newL = Console.ReadLine();
+                    if (!string.IsNullOrWhiteSpace(newL))
+                        UpdatePatientColumn(medNumber, "L_Name", newL);
+                    break;
+                case "3":
+                    Console.Write("New gender: ");
+                    var newG = Console.ReadLine();
+                    if (!string.IsNullOrWhiteSpace(newG))
+                        UpdatePatientColumn(medNumber, "Gender", newG);
+                    break;
+                case "4":
+                    Console.Write("New address: ");
+                    var newA = Console.ReadLine();
+                    if (!string.IsNullOrWhiteSpace(newA))
+                        UpdatePatientColumn(medNumber, "Adress", newA);
+                    break;
+                case "5":
+                    Console.Write("New phone number (digits only): ");
+                    var phoneStr = Console.ReadLine();
+                    if (int.TryParse(phoneStr, out var phone))
+                    {
+                        UpdatePatientColumn(medNumber, "Phone_Number", phone);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Invalid phone number. Update cancelled.");
+                        Console.ReadKey();
+                    }
+                    break;
+                case "6":
+                    Console.Write("New password: ");
+                    var newPwd = Console.ReadLine();
+                    if (!string.IsNullOrWhiteSpace(newPwd))
+                        UpdatePatientColumn(medNumber, "Password_", newPwd);
+                    break;
+                default:
+                    Console.WriteLine("Invalid selection. Try again.");
+                    Console.ReadKey();
+                    break;
+            }
+        }
+    }
+
+    private void UpdatePatientColumn(int medNumber, string columnName, object value)
+    {
+        // Only allow updating specific allowed columns to avoid SQL injection risks.
+        var allowed = new HashSet<string> { "F_Name", "L_Name", "Gender", "Adress", "Phone_Number", "Password_" };
+        if (!allowed.Contains(columnName))
+        {
+            Console.WriteLine("Updating that column is not allowed.");
+            Console.ReadKey();
+            return;
+        }
+
+        using var conn = GetUserConnection();
+        conn.Open();
+        var sql = $@"UPDATE Patient SET ""{columnName}"" = @val WHERE Medical_Number = @Medical_Number";
+        using var cmd = new NpgsqlCommand(sql, conn);
+        cmd.Parameters.AddWithValue("val", value ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("Medical_Number", medNumber);
+        var rows = cmd.ExecuteNonQuery();
+        if (rows > 0)
+        {
+            Console.WriteLine("Update successful.");
+            Console.WriteLine();
+        }
+        else
+        {
+            Console.WriteLine("Update failed (no rows affected).");
+        }
+        Console.WriteLine("Press any key to continue.");
+        Console.ReadKey();
     }
 }
