@@ -269,10 +269,6 @@ internal class Program
         choice = Console.ReadLine();
         if (choice == "6") { Login(); return; }
 
-        if (choice == "1")
-        {
-            Login();
-        }
         else if (choice == "1")
         {
             Console.Clear();
@@ -1094,22 +1090,17 @@ internal class Program
                             Console.WriteLine($"ID: {id}, Name: {name}, Spec: {spec}, Cost: {cost}  — Free times: {timesText}");
                             availableDoctorIds.Add(id);
 
-                            // reopen main reader for continuation (must create new command)
                             cmd.CommandText = $@"
                     SELECT d.Doctor_Id, d.Name_, s.spec_name, s.cost_
                     FROM Doctor d
                     LEFT JOIN Specialization s ON d.Spec_Id = s.Spec_Id
                     WHERE COALESCE((SELECT a.""{weekdayCol}"" FROM Availability a WHERE a.Doctor_Id = d.Doctor_Id), true) = true
                     ORDER BY d.Doctor_Id";
-                            using var dummy = cmd.ExecuteReader(); // rehydrate reader for loop; advance it manually
-                            // move the reader forward to the current position is tricky this way; simpler approach below
+                            using var dummy = cmd.ExecuteReader();
                             dummy.Close();
                             using var reCmd = new NpgsqlCommand(query, conn);
                             using var reReader = reCmd.ExecuteReader();
-                            // fast-forward reReader to current doctor id to resume outer loop
-                            // (we don't rely on reReader - outer while will continue from reReader after replacing)
-                            // To keep logic simple and safe, break outer loop and re-run listing after selection
-                            // (we'll list doctors again below before selection).
+  
                             break;
                         }
 

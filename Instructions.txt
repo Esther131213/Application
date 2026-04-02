@@ -1,0 +1,3 @@
+Admin login: 
+Username: 001
+Password: password_
