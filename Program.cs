@@ -115,7 +115,6 @@ internal class Program
 
     void DoctorCheck()
     {
-        // Allow "doctorId_password" or prompt for password if only id provided.
         if (string.IsNullOrWhiteSpace(username))
         {
             Console.WriteLine("Enter doctor id (or doctorId_password):");
@@ -185,7 +184,6 @@ internal class Program
 
     void PatientCheck()
     {
-        // Allow "medicalNumber_password" or prompt for password if only number provided.
         if (string.IsNullOrWhiteSpace(username))
         {
             Console.WriteLine("Enter medical number (or medicalNumber_password):");
@@ -284,7 +282,6 @@ internal class Program
                 {
                     while (reader.Read())
                     {
-                        // print a simple row summary (adjust column names as needed)
                         Console.WriteLine($"Spec_Id: {reader["Spec_Id"]}, Cost: {reader["Cost_"]}, Spec_Name: {reader["Spec_Name"]}");
                     }
                 }
@@ -338,7 +335,6 @@ internal class Program
                 {
                     while (reader.Read())
                     {
-                        // print a simple row summary (adjust column names as needed)
                         Console.WriteLine($"Doctor Id: {reader["Doctor_Id"]}, Doctor Name: {reader["Name_"]}, Specialization: {reader["Spec_Id"]}");
                     }
                 }
@@ -361,7 +357,6 @@ internal class Program
                 {
                     while (reader.Read())
                     {
-                        // print a simple row summary (adjust column names as needed)
                         Console.WriteLine($"Spec_Id: {reader["Spec_Id"]}, Cost: {reader["Cost_"]}, Spec_Name: {reader["Spec_Name"]}");
                     }
                 }
@@ -408,7 +403,6 @@ internal class Program
                 {
                     while (reader.Read())
                     {
-                        // print a simple row summary (adjust column names as needed)
                         Console.WriteLine($"Doctor Id: {reader["Doctor_Id"]}, Doctor Name: {reader["Name_"]}, Specialization: {reader["Spec_Id"]}");
                     }
                 }
@@ -499,8 +493,6 @@ internal class Program
                     }
                 }
             }
-
-            // Show upcoming appointments for this patient (from today onward)
             using (var conn = GetUserConnection())
             {
                 conn.Open();
@@ -549,8 +541,6 @@ internal class Program
                     }
                 }
             }
-
-            // Show medical records (diagnosis, description, perscription) for the selected patient
             using (var conn = GetUserConnection())
             {
                 conn.Open();
@@ -685,7 +675,6 @@ internal class Program
                     return;
                 }
 
-                // Insert doctor-only appointment (no patient)
                 if (!BookAppointment(loggedInDoctorId, appointmentDate, appointmentTime, null, "Doctor block"))
                 {
                     Console.WriteLine("Booking failed.");
@@ -694,7 +683,6 @@ internal class Program
                     return;
                 }
 
-                // By default: only the specific time slot is blocked.
                 Console.WriteLine($"Doctor-only appointment saved for {appointmentDate:yyyy-MM-dd} at {appointmentTime}.");
                 Console.WriteLine("Note: only this time slot is blocked. Do you also want to mark the entire weekday unavailable? (y/n)");
                 var ans = Console.ReadLine()?.Trim().ToLowerInvariant();
@@ -785,7 +773,7 @@ internal class Program
                 }
             }
 
-            // Show medical records for the selected patient (uses Booking_Date/Booking_Time)
+            // Show medical records for the selected patient
             using (var conn = GetUserConnection())
             {
                 conn.Open();
@@ -826,7 +814,7 @@ internal class Program
         }
         else if (choice == "4")
         {
-            // Add patient flow (unchanged)
+            // Add patient
             Console.Clear();
             Console.WriteLine("All registered patients: ");
             using (var conn = GetUserConnection())
@@ -928,7 +916,6 @@ internal class Program
             Console.WriteLine("Write the administered perscription.");
             perscription = Console.ReadLine();
 
-            // Ensure there is an appointment (booking) for this patient at the given date/time
             using (var conn = GetUserConnection())
             {
                 conn.Open();
@@ -1042,7 +1029,6 @@ internal class Program
                 var appointmentDate = ReadDateInUpcomingWeek("Appointment date (YYYY-MM-DD) — must be Mon-Fri within upcoming 7 days: ");
                 var weekdayCol = GetWeekdayColumn(appointmentDate);
 
-                // List doctors available that weekday and compute free times per doctor
                 Console.WriteLine();
                 Console.WriteLine($"Doctors and free times on {appointmentDate.DayOfWeek} ({appointmentDate:yyyy-MM-dd}):");
                 var availableDoctorIds = new List<int>();
@@ -1114,7 +1100,7 @@ internal class Program
                     }
                 }
 
-                // Re-list doctors for selection (simpler, consistent)
+                // Re-list doctors for selection
                 Console.WriteLine();
                 Console.WriteLine("Choose a doctor by ID from the list above.");
                 int docId = ReadInt("Enter doctor ID to book with: ");
@@ -1128,7 +1114,7 @@ internal class Program
                     return;
                 }
 
-                // Get this doctor's booked times and compute available slots
+                // Get this doctor's booked times and available slots
                 HashSet<TimeOnly> bookedTimes = new();
                 using (var conn = GetUserConnection())
                 {
@@ -1170,7 +1156,6 @@ internal class Program
 
                 var appointmentTime = availableSlots[selIndex];
 
-                // Final slot collision check and book
                 if (IsSlotTaken(docId, appointmentDate, appointmentTime))
                 {
                     Console.WriteLine("That slot was just taken. Try again.");
@@ -1256,8 +1241,6 @@ internal class Program
         Console.ReadKey();
         PatientMain();
     }
-
-    // --- Missing booking & availability helpers (paste this above the safe input helpers) ---
 
     private bool IsWithinUpcomingWeek(DateOnly date)
     {
@@ -1345,7 +1328,6 @@ internal class Program
 
     private bool BookAppointment(int doctorId, DateOnly date, TimeOnly time, int? patientId, string patientName)
     {
-        // enforce constraints
         if (patientId.HasValue && loggedInMedicalNumber != -1 && patientId.Value != loggedInMedicalNumber)
         {
             Console.WriteLine("You may only book appointments for the patient you are logged in as.");
@@ -1451,7 +1433,6 @@ internal class Program
         using var conn = GetUserConnection();
         conn.Open();
 
-        // 1) Read per-weekday availability (defaults to available if no row)
         bool monday = true, tuesday = true, wednesday = true, thursday = true, friday = true;
         string availSql = @"SELECT ""Monday"", ""Tuesday"", ""Wednesday"", ""Thursday"", ""Friday"" FROM Availability WHERE Doctor_Id = @Doctor_Id";
         using (var cmd = new NpgsqlCommand(availSql, conn))
@@ -1460,7 +1441,6 @@ internal class Program
             using var reader = cmd.ExecuteReader();
             if (reader.Read())
             {
-                // Guard for DBNull
                 monday = reader["Monday"] != DBNull.Value && Convert.ToBoolean(reader["Monday"]);
                 tuesday = reader["Tuesday"] != DBNull.Value && Convert.ToBoolean(reader["Tuesday"]);
                 wednesday = reader["Wednesday"] != DBNull.Value && Convert.ToBoolean(reader["Wednesday"]);
@@ -1673,7 +1653,6 @@ internal class Program
 
     private void UpdatePatientColumn(int medNumber, string columnName, object value)
     {
-        // Map allowed logical names to actual DB column names (lower-case, unquoted).
         var allowedMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             { "F_Name", "f_name" },
@@ -1694,7 +1673,6 @@ internal class Program
         using var conn = GetUserConnection();
         conn.Open();
 
-        // Use the mapped column name unquoted so PostgreSQL resolves it to the lowercase column.
         var sql = $@"UPDATE Patient SET {dbColumn} = @val WHERE Medical_Number = @Medical_Number";
         using var cmd = new NpgsqlCommand(sql, conn);
         cmd.Parameters.AddWithValue("val", value ?? DBNull.Value);
