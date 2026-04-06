@@ -1333,11 +1333,6 @@ internal class Program
             Console.WriteLine("You may only book appointments for the patient you are logged in as.");
             return false;
         }
-        if (loggedInDoctorId != -1 && doctorId != loggedInDoctorId)
-        {
-            Console.WriteLine("Doctors may only create appointments for their own account.");
-            return false;
-        }
 
         using var conn = GetUserConnection();
         conn.Open();
